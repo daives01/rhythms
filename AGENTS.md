@@ -1,0 +1,3 @@
+- we are using bun, not npm
+- react compiler is on, no need for useMemo, etc
+- don't run the dev server, I'm running it already

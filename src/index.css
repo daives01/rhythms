@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+/* Import distinctive fonts */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  /* Typography */
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-sans: "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", monospace;
+
+  /*
+   * Color palette - Warm stage lighting aesthetic
+   * Deep blacks with warm undertones, amber/gold accents
+   */
+  --color-background: #0c0a09;
+  --color-background-warm: #12100f;
+  --color-foreground: #faf6f1;
+  --color-foreground-muted: #c9c2b8;
+
+  --color-muted: #1c1917;
+  --color-muted-foreground: #a8a29e;
+  --color-border: #292524;
+  --color-border-subtle: #1c1917;
+
+  /* Primary - Warm amber/gold like stage lights */
+  --color-primary: #f59e0b;
+  --color-primary-glow: #fbbf24;
+  --color-primary-deep: #d97706;
+  --color-primary-foreground: #0c0a09;
+
+  /* Secondary - Warm stone */
+  --color-secondary: #292524;
+  --color-secondary-foreground: #faf6f1;
+
+  /* Accent - Success green with warmth */
+  --color-accent: #84cc16;
+  --color-accent-foreground: #0c0a09;
+
+  /* Feedback colors */
+  --color-perfect: #84cc16;
+  --color-early: #facc15;
+  --color-late: #fb923c;
+  --color-miss: #ef4444;
+
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #faf6f1;
+
+  --color-card: #1c1917;
+  --color-card-foreground: #faf6f1;
+
+  /* Ring/focus */
+  --color-ring: #f59e0b;
+
+  /* Radius - Slightly softer */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* Shadows with warm tint */
+  --shadow-glow: 0 0 60px -12px rgba(245, 158, 11, 0.4);
+  --shadow-glow-sm: 0 0 30px -8px rgba(245, 158, 11, 0.3);
+  --shadow-soft: 0 4px 24px -4px rgba(0, 0, 0, 0.5);
+}
+
+/* Keyframe animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px -4px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px -4px rgba(245, 158, 11, 0.5);
+  }
+}
+
+@keyframes beat-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes count-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 158, 11, 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(245, 158, 11, 0.05), transparent),
+      var(--color-background);
+  }
+
+  #root {
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* Subtle noise texture overlay */
+  #root::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display;
+    letter-spacing: -0.01em;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-muted);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted-foreground);
+  }
+}
+
+@layer utilities {
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .animate-beat-pulse {
+    animation: beat-pulse 0.5s ease-in-out;
+  }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.4s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .animate-count-pulse {
+    animation: count-pulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .animate-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(245, 158, 11, 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-ripple {
+    animation: ripple 0.6s ease-out forwards;
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-glow) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .glow-sm {
+    box-shadow: var(--shadow-glow-sm);
+  }
+
+  /* Stagger animation delays */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+}
