@@ -8,14 +8,17 @@ export type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timi
 export type GameOverCallback = (reason: "miss" | "extra") => void
 
 export class JudgeEngine {
-  private toleranceMs: number = 80 // Default tolerance window
+  private toleranceMs: number = 100 // Default tolerance window
+  private earlyWindowMs: number = 300 // How early you can hit and still count
   private onJudgeCallbacks: Set<JudgeCallback> = new Set()
   private onGameOverCallbacks: Set<GameOverCallback> = new Set()
   private missCheckTimer: number | null = null
   private isActive: boolean = false
 
   setTolerance(toleranceMs: number): void {
-    this.toleranceMs = Math.max(30, Math.min(150, toleranceMs))
+    this.toleranceMs = Math.max(50, Math.min(150, toleranceMs))
+    // Early window scales with tolerance
+    this.earlyWindowMs = this.toleranceMs * 3
   }
 
   getTolerance(): number {
@@ -51,29 +54,56 @@ export class JudgeEngine {
 
     const hitTime = transportEngine.now()
     const toleranceSec = this.toleranceMs / 1000
+    const earlyWindowSec = this.earlyWindowMs / 1000
     const unhitOnsets = rhythmBuffer.getUnhitOnsets()
 
-    // Find nearest unhit onset within tolerance
-    let nearestOnset: RuntimeOnset | null = null
-    let nearestDistance = Infinity
+    console.log('🎯 HIT DETECTED at', hitTime.toFixed(3), 's')
+
+    // Find the next unhit onset (could be in the past within tolerance, or upcoming)
+    let bestOnset: RuntimeOnset | null = null
+    let bestScore = Infinity
 
     for (const onset of unhitOnsets) {
-      const distance = Math.abs(hitTime - onset.timeSec)
-      if (distance < nearestDistance && distance <= toleranceSec) {
-        nearestDistance = distance
-        nearestOnset = onset
+      const timeDiff = onset.timeSec - hitTime // positive = onset is in future, negative = in past
+
+      // Accept hits that are:
+      // - Up to toleranceSec LATE (onset in past)
+      // - Up to earlyWindowSec EARLY (onset in future)
+      if (timeDiff >= -toleranceSec && timeDiff <= earlyWindowSec) {
+        // Score by absolute distance, preferring closer notes
+        const score = Math.abs(timeDiff)
+        if (score < bestScore) {
+          bestScore = score
+          bestOnset = onset
+        }
       }
     }
 
-    if (nearestOnset) {
-      // Valid hit
-      rhythmBuffer.markHit(nearestOnset.id)
-      const timingError = (hitTime - nearestOnset.timeSec) * 1000 // in ms
-      this.notifyJudge("hit", nearestOnset, timingError)
+    if (bestOnset) {
+      // Valid hit - mark it
+      rhythmBuffer.markHit(bestOnset.id)
+      // Adjust timing: compensate for ~45ms audio/visual latency
+      const timingError = (hitTime - bestOnset.timeSec) * 1000 + 45 // negative = early, positive = late
+      console.log('✅ MATCHED onset:', {
+        expectedTime: bestOnset.timeSec.toFixed(3) + 's',
+        actualTime: hitTime.toFixed(3) + 's',
+        timingError: timingError.toFixed(1) + 'ms',
+        result: timingError < 0 ? 'EARLY' : timingError > 0 ? 'LATE' : 'PERFECT'
+      })
+      this.notifyJudge("hit", bestOnset, timingError)
     } else {
-      // Extra hit - game over
-      this.notifyJudge("extra", null, 0)
-      this.triggerGameOver("extra")
+      // No valid onset found - this is an extra hit
+      // Be stricter: penalize if there's no onset coming soon
+      const nextOnset = unhitOnsets.find(o => o.timeSec > hitTime)
+      if (!nextOnset || (nextOnset.timeSec - hitTime) > 0.5) {
+        // Nothing coming for over 500ms - definitely extra
+        console.log('❌ EXTRA HIT - no onset found within tolerance')
+        this.notifyJudge("extra", null, 0)
+        this.triggerGameOver("extra")
+      } else {
+        console.log('⏩ Too early - next onset at', nextOnset.timeSec.toFixed(3), 's (diff:', ((nextOnset.timeSec - hitTime) * 1000).toFixed(1), 'ms)')
+      }
+      // Otherwise just ignore the early tap (grace period)
     }
   }
 
@@ -89,6 +119,12 @@ export class JudgeEngine {
       for (const onset of unhitOnsets) {
         if (currentTime > onset.timeSec + toleranceSec) {
           // Missed this onset - game over
+          const missedBy = (currentTime - onset.timeSec) * 1000
+          console.log('❌ MISS detected:', {
+            expectedTime: onset.timeSec.toFixed(3) + 's',
+            currentTime: currentTime.toFixed(3) + 's',
+            missedBy: missedBy.toFixed(1) + 'ms'
+          })
           this.notifyJudge("miss", onset, 0)
           this.triggerGameOver("miss")
           return

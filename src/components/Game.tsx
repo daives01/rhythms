@@ -69,17 +69,20 @@ export function Game() {
   const startGame = useCallback(async () => {
     transportEngine.setBpm(bpm)
     rhythmBuffer.setDifficulty(difficulty)
-    judgeEngine.setTolerance(90 - difficulty * 5)
-
-    const initialBars = rhythmBuffer.initialize()
-    setBars(initialBars)
+    // Tolerance: 120ms for Easy, down to 70ms for Master
+    judgeEngine.setTolerance(130 - difficulty * 12)
 
     setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
     setGameOverReason(null)
     setGameState("countIn")
     setCountInBeat(null)
 
+    // IMPORTANT: Start transport FIRST so startTimeSec is set
     await transportEngine.start()
+
+    // THEN initialize rhythm buffer (onset times depend on startTimeSec)
+    const initialBars = rhythmBuffer.initialize()
+    setBars(initialBars)
   }, [bpm, difficulty])
 
   const stopGame = useCallback(() => {
@@ -168,7 +171,7 @@ export function Game() {
     }
   }, [])
 
-  const difficultyLabels = ["", "Easy", "Normal", "Hard", "Expert", "Master"]
+  const difficultyLabels = ["", "Easy", "Normal", "Hard"]
 
   return (
     <div className="min-h-screen flex flex-col overflow-hidden">
@@ -235,7 +238,7 @@ export function Game() {
                   value={difficulty}
                   onValueChange={setDifficulty}
                   min={1}
-                  max={5}
+                  max={3}
                   step={1}
                   valueFormatter={(v) => difficultyLabels[v]}
                 />
@@ -268,17 +271,37 @@ export function Game() {
 
         {/* Count-in screen */}
         {gameState === "countIn" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6">
-            <div className="text-center">
-              <p className="text-muted-foreground mb-6 text-lg animate-fade-in">Get ready...</p>
-              <div
-                key={countInBeat}
-                className="text-9xl font-display font-bold text-primary animate-count-pulse"
-                style={{
-                  textShadow: "0 0 60px rgba(245,158,11,0.5)",
-                }}
-              >
-                {countInBeat ?? ""}
+          <div className="flex-1 flex flex-col p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
+            {/* Notation display */}
+            <div
+              className={cn(
+                "rounded-2xl p-5 border transition-all duration-150",
+                "bg-gradient-to-b from-card to-card/50",
+                "border-border/50",
+                "shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+              )}
+            >
+              <NotationRenderer
+                bars={bars}
+                currentBar={0}
+                currentBeat={0}
+                beatFraction={0}
+              />
+            </div>
+
+            {/* Count-in overlay */}
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-6 text-lg animate-fade-in">Get ready...</p>
+                <div
+                  key={countInBeat}
+                  className="text-9xl font-display font-bold text-primary animate-count-pulse"
+                  style={{
+                    textShadow: "0 0 60px rgba(245,158,11,0.5)",
+                  }}
+                >
+                  {countInBeat ?? ""}
+                </div>
               </div>
             </div>
           </div>
@@ -304,27 +327,8 @@ export function Game() {
               />
             </div>
 
-            {/* Beat indicator */}
-            <div className="flex justify-center items-center gap-3 py-2">
-              {[0, 1, 2, 3].map((beat) => (
-                <div
-                  key={beat}
-                  className={cn(
-                    "relative w-4 h-4 rounded-full transition-all duration-100",
-                    currentBeat === beat
-                      ? "bg-primary scale-125"
-                      : "bg-muted/50"
-                  )}
-                >
-                  {currentBeat === beat && beatPulse && (
-                    <div className="absolute inset-0 rounded-full bg-primary animate-ripple" />
-                  )}
-                </div>
-              ))}
-            </div>
-
             {/* Spacer */}
-            <div className="flex-1 min-h-4" />
+            <div className="flex-1 min-h-8" />
 
             {/* Touch pad */}
             <div className="max-w-xl mx-auto w-full pb-4">
