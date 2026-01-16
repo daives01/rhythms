@@ -1,65 +1,52 @@
-// Rational beat position representation
 export interface Onset {
-  beatIndex: 0 | 1 | 2 | 3 // Which beat in the bar (0-3 for 4/4)
-  n: number // Numerator of subdivision
-  d: number // Denominator (4 = 16ths, 3 = triplets, etc.)
+  beatIndex: 0 | 1 | 2 | 3
+  n: number
+  d: number
 }
 
-// Runtime onset with precomputed timing
 export interface RuntimeOnset {
   id: string
-  timeSec: number // Absolute time in AudioContext seconds
+  timeSec: number
   hit: boolean
   beatIndex: number
   n: number
   d: number
 }
 
-// A single bar of rhythm
 export interface Bar {
   id: string
   onsets: Onset[]
 }
 
-// Runtime bar with precomputed onset times
 export interface RuntimeBar {
   id: string
-  barIndex: number // Absolute bar index from start
+  barIndex: number
   onsets: RuntimeOnset[]
+  width?: number  // calculated width for variable-width rendering
 }
 
-// Game state machine
 export type GameState = "idle" | "countIn" | "running" | "gameOver"
 
-// Score tracking
 export interface GameScore {
   barsSurvived: number
   beatsSurvived: number
   totalHits: number
-  timeSurvived: number // in seconds
+  timeSurvived: number
 }
 
-// Judge result for a single hit
 export type HitResult = "hit" | "miss" | "extra"
 
-// Transport state
-export interface TransportState {
-  isRunning: boolean
-  startTimeSec: number
-  countInComplete: boolean
-  currentBeat: number
-  currentBar: number
+export type Difficulty = "easy" | "medium" | "hard"
+
+export interface BeatPatternOnset {
+  n: number  // slot within the beat pattern (0-7 for 2-beat patterns)
+  d: number  // always 4 (sixteenth note grid)
 }
 
-// Game settings
-export interface GameSettings {
-  bpm: number
-  difficulty: number // 1-5
-  toleranceMs: number // Hit window in ms
-}
-
-export const DEFAULT_SETTINGS: GameSettings = {
-  bpm: 100,
-  difficulty: 2,
-  toleranceMs: 80,
+export interface BeatPattern {
+  id: string
+  name: string
+  length: 1 | 2  // in beats
+  onsets: BeatPatternOnset[]
+  difficulty: Difficulty[]
 }

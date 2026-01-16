@@ -1,0 +1,235 @@
+{
+  "beats": [
+    {
+      "id": "q",
+      "name": "Quarter note",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "qr",
+      "name": "Quarter rest",
+      "length": 1,
+      "onsets": [],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "8-8",
+      "name": "Two eighths",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "8-8r",
+      "name": "Eighth + eighth rest",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "8r-8",
+      "name": "Eighth rest + eighth",
+      "length": 1,
+      "onsets": [{ "n": 2, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "16-16-8",
+      "name": "Two sixteenths + eighth",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "8-16-16",
+      "name": "Eighth + two sixteenths",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "16-16-16-16",
+      "name": "Four sixteenths",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "16-8-16",
+      "name": "Sixteenth + eighth + sixteenth",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8-16r-16",
+      "name": "Eighth + sixteenth rest + sixteenth",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "16r-16-8",
+      "name": "Sixteenth rest + sixteenth + eighth",
+      "length": 1,
+      "onsets": [{ "n": 1, "d": 4 }, { "n": 2, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "16-16-8r",
+      "name": "Two sixteenths + eighth rest",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8r-16-16",
+      "name": "Eighth rest + two sixteenths",
+      "length": 1,
+      "onsets": [{ "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "16r-8-16",
+      "name": "Sixteenth rest + eighth + sixteenth",
+      "length": 1,
+      "onsets": [{ "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "h",
+      "name": "Half note",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "q-q",
+      "name": "Two quarters",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "q-8-8",
+      "name": "Quarter + two eighths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "8-8-q",
+      "name": "Two eighths + quarter",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "8-8-8-8",
+      "name": "Four eighths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["easy", "medium"]
+    },
+    {
+      "id": "dq-8",
+      "name": "Dotted quarter + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "8-dq",
+      "name": "Eighth + dotted quarter",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "q-8r-8",
+      "name": "Quarter + eighth rest + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "8r-8-q",
+      "name": "Eighth rest + eighth + quarter",
+      "length": 2,
+      "onsets": [{ "n": 2, "d": 4 }, { "n": 4, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "8-8r-8-8",
+      "name": "Eighth + rest + two eighths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "8-8-8r-8",
+      "name": "Two eighths + rest + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+    {
+      "id": "16-16-8-q",
+      "name": "Two sixteenths + eighth + quarter",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "q-16-16-8",
+      "name": "Quarter + two sixteenths + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 5, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8-16-16-8-8",
+      "name": "Eighth + two sixteenths + two eighths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8-8-8-16-16",
+      "name": "Three eighths + two sixteenths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }, { "n": 7, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "16-16-16-16-q",
+      "name": "Four sixteenths + quarter",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }, { "n": 4, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "q-16-16-16-16",
+      "name": "Quarter + four sixteenths",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 5, "d": 4 }, { "n": 6, "d": 4 }, { "n": 7, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8r-8-8r-8",
+      "name": "Off-beat eighths",
+      "length": 2,
+      "onsets": [{ "n": 2, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["hard"]
+    },
+    {
+      "id": "8-8r-8r-8",
+      "name": "Eighth + rest + rest + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["hard"]
+    }
+  ]
+}

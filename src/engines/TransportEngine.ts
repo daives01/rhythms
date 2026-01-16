@@ -1,5 +1,3 @@
-// TransportEngine - owns AudioContext, click scheduling, BPM, count-in, start/stop
-
 export type TransportCallback = (beat: number, bar: number, isCountIn: boolean) => void
 
 export class TransportEngine {
@@ -7,25 +5,23 @@ export class TransportEngine {
   private bpm: number = 100
   private isRunning: boolean = false
   private startTimeSec: number = 0
-  private countInBeats: number = 4 // 1 bar count-in
+  private countInBeats: number = 4
   private countInComplete: boolean = false
   private schedulerTimer: number | null = null
   private nextBeatTime: number = 0
   private currentBeatIndex: number = 0
-  private lookahead: number = 0.1 // Schedule 100ms ahead
-  private scheduleInterval: number = 25 // Check every 25ms
+  private lookahead: number = 0.1
+  private scheduleInterval: number = 25
   private onBeatCallbacks: Set<TransportCallback> = new Set()
 
-  // Click sound parameters
-  private clickFreqHigh: number = 1000 // Beat 1 accent
-  private clickFreqLow: number = 800 // Other beats
+  private clickFreqHigh: number = 1000
+  private clickFreqLow: number = 800
   private clickDuration: number = 0.05
 
   async init(): Promise<void> {
     if (!this.audioContext) {
       this.audioContext = new AudioContext()
     }
-    // Resume if suspended (mobile requirement)
     if (this.audioContext.state === "suspended") {
       await this.audioContext.resume()
     }
@@ -75,7 +71,7 @@ export class TransportEngine {
     this.isRunning = true
     this.countInComplete = false
     this.currentBeatIndex = 0
-    this.nextBeatTime = this.audioContext.currentTime + 0.05 // Small initial delay
+    this.nextBeatTime = this.audioContext.currentTime + 0.05
     this.startTimeSec = this.nextBeatTime + this.countInBeats * this.getSecondsPerBeat()
 
     this.scheduler()
@@ -94,7 +90,6 @@ export class TransportEngine {
 
     const currentTime = this.audioContext.currentTime
 
-    // Schedule all beats within lookahead window
     while (this.nextBeatTime < currentTime + this.lookahead) {
       this.scheduleClick(this.nextBeatTime, this.currentBeatIndex)
       this.notifyBeat(this.nextBeatTime, this.currentBeatIndex)
@@ -124,7 +119,6 @@ export class TransportEngine {
     osc.frequency.value = isAccent ? this.clickFreqHigh : this.clickFreqLow
     osc.type = "square"
 
-    // Louder click during count-in
     const volume = isCountIn ? 0.3 : 0.15
     gain.gain.setValueAtTime(volume, time)
     gain.gain.exponentialRampToValueAtTime(0.001, time + this.clickDuration)
@@ -140,12 +134,10 @@ export class TransportEngine {
       this.countInComplete = true
     }
 
-    // Calculate actual beat/bar position
     const adjustedBeat = isCountIn ? beatIndex : beatIndex - this.countInBeats
     const bar = Math.floor(adjustedBeat / 4)
     const beat = adjustedBeat % 4
 
-    // Schedule callback at the beat time
     if (this.audioContext) {
       const delay = Math.max(0, (time - this.audioContext.currentTime) * 1000)
       setTimeout(() => {
@@ -154,7 +146,6 @@ export class TransportEngine {
     }
   }
 
-  // Get current position relative to game start (after count-in)
   getCurrentPosition(): { bar: number; beat: number; beatFraction: number } | null {
     if (!this.audioContext || !this.isRunning || !this.countInComplete) {
       return null
@@ -172,12 +163,10 @@ export class TransportEngine {
     return { bar, beat, beatFraction }
   }
 
-  // Convert a bar/beat position to absolute time
   positionToTime(bar: number, beat: number, subdivision: number = 0, subdivisionDenominator: number = 4): number {
     const beatsFromStart = bar * 4 + beat + subdivision / subdivisionDenominator
     return this.startTimeSec + beatsFromStart * this.getSecondsPerBeat()
   }
 }
 
-// Singleton instance
 export const transportEngine = new TransportEngine()

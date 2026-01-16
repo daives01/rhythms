@@ -1,8 +1,6 @@
-// RhythmEngine - generates bars of rhythm based on difficulty
-// Maintains a rolling 4-bar buffer
-
-import type { Bar, Onset, RuntimeBar, RuntimeOnset } from "@/types"
+import type { Bar, Onset, RuntimeBar, RuntimeOnset, Difficulty, BeatPattern } from "@/types"
 import { transportEngine } from "./TransportEngine"
+import beatsConfig from "@/beats.json"
 
 let barIdCounter = 0
 let onsetIdCounter = 0
@@ -15,113 +13,91 @@ function generateOnsetId(): string {
   return `onset-${onsetIdCounter++}`
 }
 
-// Difficulty settings
-// Position within beat: 0=downbeat, 1=e (on-beat 16th), 2=& (off-beat 8th), 3=a (off-beat 16th)
-interface DifficultySettings {
-  allowedPositions: number[] // Which 16th positions within a beat are allowed
-  minOnsetsPerBar: number
-  maxOnsetsPerBar: number
-  downbeatWeight: number // Weight for position 0
+const allPatterns = beatsConfig.beats as BeatPattern[]
+
+function getPatternsForDifficulty(difficulty: Difficulty): BeatPattern[] {
+  return allPatterns.filter((p) => p.difficulty.includes(difficulty))
 }
 
-const DIFFICULTY_PRESETS: Record<number, DifficultySettings> = {
-  // Easy: quarters and on-beat eighths only (positions 0, 2)
-  1: {
-    allowedPositions: [0, 2],
-    minOnsetsPerBar: 3,
-    maxOnsetsPerBar: 5,
-    downbeatWeight: 3,
-  },
-  // Normal: add on-beat 16ths (position 1)
-  2: {
-    allowedPositions: [0, 1, 2],
-    minOnsetsPerBar: 4,
-    maxOnsetsPerBar: 7,
-    downbeatWeight: 2,
-  },
-  // Hard: full 16th grid
-  3: {
-    allowedPositions: [0, 1, 2, 3],
-    minOnsetsPerBar: 5,
-    maxOnsetsPerBar: 10,
-    downbeatWeight: 1.5,
-  },
+function pickRandomPattern(patterns: BeatPattern[], targetLength?: 1 | 2): BeatPattern {
+  const filtered = targetLength ? patterns.filter((p) => p.length === targetLength) : patterns
+  const pool = filtered.length > 0 ? filtered : patterns
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
-function getDifficultySettings(difficulty: number): DifficultySettings {
-  const level = Math.max(1, Math.min(3, Math.round(difficulty)))
-  return DIFFICULTY_PRESETS[level] ?? DIFFICULTY_PRESETS[2]
+// Calculate "complexity" of a bar based on number of onsets and syncopation
+export function calculateBarComplexity(bar: Bar): number {
+  const numOnsets = bar.onsets.length
+  let syncopation = 0
+
+  for (const onset of bar.onsets) {
+    // Offbeat sixteenths (n=1 or n=3) are more complex
+    if (onset.n % 2 === 1) syncopation++
+    // Offbeat eighths (n=2) are slightly less complex
+    else if (onset.n === 2) syncopation += 0.5
+  }
+
+  return numOnsets + syncopation
 }
 
-// Generate a single bar of rhythm
-// isFirstBar: if true, don't place notes at beat 0 (give player reaction time)
-export function generateBar(difficulty: number, isFirstBar: boolean = false): Bar {
-  const settings = getDifficultySettings(difficulty)
-  const targetOnsets = Math.floor(
-    Math.random() * (settings.maxOnsetsPerBar - settings.minOnsetsPerBar + 1) + settings.minOnsetsPerBar
-  )
+export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false): Bar {
+  const patterns = getPatternsForDifficulty(difficulty)
+  const onsets: Onset[] = []
 
-  // Build list of allowed positions based on difficulty
-  const positions: Array<{ beatIndex: 0 | 1 | 2 | 3; n: number }> = []
-  for (let beatIndex = 0; beatIndex < 4; beatIndex++) {
-    // Skip beat 0 entirely for first bar (reaction time)
-    if (isFirstBar && beatIndex === 0) continue
+  let beatsRemaining = 4
+  let currentBeat = 0
 
-    for (const n of settings.allowedPositions) {
-      positions.push({ beatIndex: beatIndex as 0 | 1 | 2 | 3, n })
-    }
+  // For first bar, skip beat 0
+  if (isFirstBar) {
+    beatsRemaining = 3
+    currentBeat = 1
   }
 
-  // Calculate weights - downbeats get more weight
-  const weights = positions.map((pos) => {
-    return pos.n === 0 ? settings.downbeatWeight : 1
-  })
-
-  // Select positions using weighted random sampling
-  const selected: Onset[] = []
-  const available = [...positions]
-  const availableWeights = [...weights]
-
-  // Always include at least one downbeat per bar for readability
-  const downbeatOptions = positions
-    .filter(p => p.n === 0)
-    .map(p => p.beatIndex)
-
-  if (downbeatOptions.length > 0) {
-    const firstDownbeat = downbeatOptions[Math.floor(Math.random() * downbeatOptions.length)]
-    selected.push({ beatIndex: firstDownbeat as 0 | 1 | 2 | 3, n: 0, d: 4 })
-
-    const idx = available.findIndex(p => p.beatIndex === firstDownbeat && p.n === 0)
-    if (idx >= 0) {
-      available.splice(idx, 1)
-      availableWeights.splice(idx, 1)
-    }
-  }
-
-  // Fill remaining slots
-  while (selected.length < targetOnsets && available.length > 0) {
-    const totalWeight = availableWeights.reduce((a, b) => a + b, 0)
-    if (totalWeight === 0) break
-
-    let random = Math.random() * totalWeight
-    let selectedIdx = 0
-
-    for (let i = 0; i < availableWeights.length; i++) {
-      random -= availableWeights[i]
-      if (random <= 0) {
-        selectedIdx = i
-        break
-      }
+  while (beatsRemaining > 0) {
+    // If we have 3 beats left, randomly choose 1 or 2 beat pattern
+    // If we have 2 or 4 beats left, can use either 1 or 2
+    // If we have 1 beat left, must use 1
+    let targetLength: 1 | 2
+    if (beatsRemaining === 1) {
+      targetLength = 1
+    } else if (beatsRemaining === 3) {
+      // Can't fit a 2-beat, so alternate: 1+2 or 2+1
+      targetLength = Math.random() < 0.5 ? 1 : 2
+      // But if we pick 2 first with 3 remaining, we'd have 1 left - that works
+      // Actually just pick based on what's available
+      targetLength = Math.random() < 0.5 ? 1 : (beatsRemaining >= 2 ? 2 : 1)
+    } else {
+      // 2 or 4 beats remaining - randomly pick 1 or 2
+      targetLength = Math.random() < 0.5 ? 1 : 2
     }
 
-    const pos = available[selectedIdx]
-    selected.push({ beatIndex: pos.beatIndex, n: pos.n, d: 4 })
-    available.splice(selectedIdx, 1)
-    availableWeights.splice(selectedIdx, 1)
+    // Make sure target doesn't exceed remaining
+    if (targetLength > beatsRemaining) {
+      targetLength = beatsRemaining as 1 | 2
+    }
+
+    const pattern = pickRandomPattern(patterns, targetLength)
+
+    // Convert pattern onsets to bar onsets
+    for (const pOnset of pattern.onsets) {
+      // pOnset.n is the slot within the pattern (0-3 for 1-beat, 0-7 for 2-beat)
+      const slotInBar = currentBeat * 4 + pOnset.n
+      const beatIndex = Math.floor(slotInBar / 4) as 0 | 1 | 2 | 3
+      const n = slotInBar % 4
+
+      onsets.push({
+        beatIndex,
+        n,
+        d: 4,
+      })
+    }
+
+    currentBeat += pattern.length
+    beatsRemaining -= pattern.length
   }
 
-  // Sort by position
-  selected.sort((a, b) => {
+  // Sort onsets by position
+  onsets.sort((a, b) => {
     const aIdx = a.beatIndex * 4 + a.n
     const bIdx = b.beatIndex * 4 + b.n
     return aIdx - bIdx
@@ -129,11 +105,10 @@ export function generateBar(difficulty: number, isFirstBar: boolean = false): Ba
 
   return {
     id: generateBarId(),
-    onsets: selected,
+    onsets,
   }
 }
 
-// Convert a Bar to RuntimeBar with absolute timing
 export function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
   const onsets: RuntimeOnset[] = bar.onsets.map((onset) => ({
     id: generateOnsetId(),
@@ -151,14 +126,13 @@ export function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
   }
 }
 
-// Rhythm buffer manager
 export class RhythmBuffer {
   private bars: RuntimeBar[] = []
-  private difficulty: number = 2
+  private difficulty: Difficulty = "medium"
   private nextBarIndex: number = 0
 
-  setDifficulty(difficulty: number): void {
-    this.difficulty = Math.max(1, Math.min(3, difficulty))
+  setDifficulty(difficulty: Difficulty): void {
+    this.difficulty = difficulty
   }
 
   reset(): void {
@@ -170,8 +144,8 @@ export class RhythmBuffer {
 
   initialize(): RuntimeBar[] {
     this.reset()
-    // Buffer 8 bars: 4 visible + 4 upcoming for smooth page flip
-    for (let i = 0; i < 8; i++) {
+    // Initialize with 6 bars (extra lookahead to prevent pop-in)
+    for (let i = 0; i < 6; i++) {
       this.appendBar(i === 0)
     }
     return this.bars
@@ -213,17 +187,11 @@ export class RhythmBuffer {
 
     const firstVisibleBar = this.bars[0].barIndex
 
-    // Page flip: when we've completed 4 bars, swap to next 4
-    // We keep 8 bars buffered (4 visible + 4 upcoming)
-    if (currentBarIndex >= firstVisibleBar + 4) {
-      // Shift out the 4 completed bars
-      for (let i = 0; i < 4 && this.bars.length > 0; i++) {
-        this.shiftBar()
-      }
-      // Append 4 more bars to maintain buffer of 8
-      for (let i = 0; i < 4; i++) {
-        this.appendBar()
-      }
+    // Sliding window: keep 1 bar behind and 1 bar ahead
+    // When current bar is 2 past the first visible bar, shift one and append one
+    if (currentBarIndex >= firstVisibleBar + 2) {
+      this.shiftBar()
+      this.appendBar()
       return true
     }
 

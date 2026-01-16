@@ -1,5 +1,3 @@
-// JudgeEngine - handles hit detection, miss checking, and game over logic
-
 import type { RuntimeOnset, HitResult } from "@/types"
 import { transportEngine } from "./TransportEngine"
 import { rhythmBuffer } from "./RhythmEngine"
@@ -8,8 +6,9 @@ export type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timi
 export type GameOverCallback = (reason: "miss" | "extra") => void
 
 export class JudgeEngine {
-  private toleranceMs: number = 100 // Default tolerance window
-  private earlyWindowMs: number = 300 // How early you can hit and still count
+  private toleranceMs: number = 100
+  private earlyWindowMs: number = 300
+  private latencyOffsetMs: number = 0
   private onJudgeCallbacks: Set<JudgeCallback> = new Set()
   private onGameOverCallbacks: Set<GameOverCallback> = new Set()
   private missCheckTimer: number | null = null
@@ -17,12 +16,19 @@ export class JudgeEngine {
 
   setTolerance(toleranceMs: number): void {
     this.toleranceMs = Math.max(50, Math.min(150, toleranceMs))
-    // Early window scales with tolerance
     this.earlyWindowMs = this.toleranceMs * 3
   }
 
   getTolerance(): number {
     return this.toleranceMs
+  }
+
+  setLatencyOffset(offsetMs: number): void {
+    this.latencyOffsetMs = offsetMs
+  }
+
+  getLatencyOffset(): number {
+    return this.latencyOffsetMs
   }
 
   onJudge(callback: JudgeCallback): () => void {
@@ -48,29 +54,22 @@ export class JudgeEngine {
     }
   }
 
-  // Called when user hits (tap/key)
   onHit(): void {
     if (!this.isActive) return
 
-    const hitTime = transportEngine.now()
+    const rawHitTime = transportEngine.now()
+    const hitTime = rawHitTime - this.latencyOffsetMs / 1000
     const toleranceSec = this.toleranceMs / 1000
     const earlyWindowSec = this.earlyWindowMs / 1000
     const unhitOnsets = rhythmBuffer.getUnhitOnsets()
 
-    console.log('🎯 HIT DETECTED at', hitTime.toFixed(3), 's')
-
-    // Find the next unhit onset (could be in the past within tolerance, or upcoming)
     let bestOnset: RuntimeOnset | null = null
     let bestScore = Infinity
 
     for (const onset of unhitOnsets) {
-      const timeDiff = onset.timeSec - hitTime // positive = onset is in future, negative = in past
+      const timeDiff = onset.timeSec - hitTime
 
-      // Accept hits that are:
-      // - Up to toleranceSec LATE (onset in past)
-      // - Up to earlyWindowSec EARLY (onset in future)
       if (timeDiff >= -toleranceSec && timeDiff <= earlyWindowSec) {
-        // Score by absolute distance, preferring closer notes
         const score = Math.abs(timeDiff)
         if (score < bestScore) {
           bestScore = score
@@ -80,30 +79,15 @@ export class JudgeEngine {
     }
 
     if (bestOnset) {
-      // Valid hit - mark it
       rhythmBuffer.markHit(bestOnset.id)
-      // Adjust timing: compensate for ~45ms audio/visual latency
-      const timingError = (hitTime - bestOnset.timeSec) * 1000 + 45 // negative = early, positive = late
-      console.log('✅ MATCHED onset:', {
-        expectedTime: bestOnset.timeSec.toFixed(3) + 's',
-        actualTime: hitTime.toFixed(3) + 's',
-        timingError: timingError.toFixed(1) + 'ms',
-        result: timingError < 0 ? 'EARLY' : timingError > 0 ? 'LATE' : 'PERFECT'
-      })
+      const timingError = (hitTime - bestOnset.timeSec) * 1000
       this.notifyJudge("hit", bestOnset, timingError)
     } else {
-      // No valid onset found - this is an extra hit
-      // Be stricter: penalize if there's no onset coming soon
       const nextOnset = unhitOnsets.find(o => o.timeSec > hitTime)
       if (!nextOnset || (nextOnset.timeSec - hitTime) > 0.5) {
-        // Nothing coming for over 500ms - definitely extra
-        console.log('❌ EXTRA HIT - no onset found within tolerance')
         this.notifyJudge("extra", null, 0)
         this.triggerGameOver("extra")
-      } else {
-        console.log('⏩ Too early - next onset at', nextOnset.timeSec.toFixed(3), 's (diff:', ((nextOnset.timeSec - hitTime) * 1000).toFixed(1), 'ms)')
       }
-      // Otherwise just ignore the early tap (grace period)
     }
   }
 
@@ -111,20 +95,13 @@ export class JudgeEngine {
     const check = () => {
       if (!this.isActive) return
 
-      const currentTime = transportEngine.now()
+      const rawTime = transportEngine.now()
+      const adjustedTime = rawTime - this.latencyOffsetMs / 1000
       const toleranceSec = this.toleranceMs / 1000
       const unhitOnsets = rhythmBuffer.getUnhitOnsets()
 
-      // Check for misses (onset time + tolerance has passed)
       for (const onset of unhitOnsets) {
-        if (currentTime > onset.timeSec + toleranceSec) {
-          // Missed this onset - game over
-          const missedBy = (currentTime - onset.timeSec) * 1000
-          console.log('❌ MISS detected:', {
-            expectedTime: onset.timeSec.toFixed(3) + 's',
-            currentTime: currentTime.toFixed(3) + 's',
-            missedBy: missedBy.toFixed(1) + 'ms'
-          })
+        if (adjustedTime > onset.timeSec + toleranceSec) {
           this.notifyJudge("miss", onset, 0)
           this.triggerGameOver("miss")
           return
