@@ -8,6 +8,7 @@ import { TouchPad } from "./TouchPad"
 import { CalibrationScreen } from "./CalibrationScreen"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
 import { NoteIcon } from "./icons/NoteIcon"
@@ -45,18 +46,20 @@ export function Game() {
   const [currentBar, setCurrentBar] = useState(0)
   const [currentBeat, setCurrentBeat] = useState(0)
   const [beatFraction, setBeatFraction] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
 
   const [bpm, setBpm] = useState(120)
   const [difficulty, setDifficulty] = useState<Difficulty>("medium")
 
   const [lastResult, setLastResult] = useState<HitResult | null>(null)
   const feedbackTimeout = useRef<number | null>(null)
-  const [hitVersion, setHitVersion] = useState(0)
 
   const [countInBeat, setCountInBeat] = useState<number | null>(null)
   const [gameOverReason, setGameOverReason] = useState<"miss" | "extra" | null>(null)
   const [showCalibration, setShowCalibration] = useState(false)
   const [latencyOffset, setLatencyOffset] = useState(loadLatencyOffset)
+  const [groupMode, setGroupMode] = useState(false)
+  const [includeTuplets, setIncludeTuplets] = useState(false)
   const animationFrame = useRef<number | null>(null)
 
   useEffect(() => {
@@ -76,13 +79,27 @@ export function Game() {
     judgeEngine.onHit()
   }
 
-  useKeyboardInput(handleHit, gameState === "running")
+  useKeyboardInput(handleHit, gameState === "running" && !groupMode)
+
+  useEffect(() => {
+    if (!groupMode || gameState !== "running") return
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        stopGame()
+      }
+    }
+    window.addEventListener("keydown", handleEscape)
+    return () => window.removeEventListener("keydown", handleEscape)
+  }, [groupMode, gameState])
 
   const startGame = async () => {
     transportEngine.setBpm(bpm)
     rhythmBuffer.setDifficulty(difficulty)
-    const toleranceMap: Record<Difficulty, number> = { easy: 130, medium: 106, hard: 82 }
+    rhythmBuffer.setIncludeTuplets(includeTuplets)
+    const toleranceMap: Record<Difficulty, number> = { easy: 130, medium: 100, hard: 70 }
     judgeEngine.setTolerance(toleranceMap[difficulty])
+    judgeEngine.setBpm(bpm)
 
     setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
     setGameOverReason(null)
@@ -111,7 +128,9 @@ export function Game() {
         setCountInBeat(null)
         if (gameState === "countIn") {
           setGameState("running")
-          judgeEngine.start()
+          if (!groupMode) {
+            judgeEngine.start()
+          }
         }
       }
     })
@@ -121,7 +140,6 @@ export function Game() {
       if (result === "hit") {
         setScore((s) => ({ ...s, totalHits: s.totalHits + 1 }))
       }
-      setHitVersion((v) => v + 1)
     })
 
     const unsubGameOver = judgeEngine.onGameOver((reason) => {
@@ -147,6 +165,7 @@ export function Game() {
         setCurrentBar(pos.bar)
         setCurrentBeat(pos.beat)
         setBeatFraction(pos.beatFraction)
+        setCurrentTime(transportEngine.now())
 
         setScore((s) => ({
           ...s,
@@ -337,11 +356,10 @@ export function Game() {
             {/* Title Section */}
             <div className="text-center mb-12 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
               <h2 className="text-5xl md:text-6xl font-display font-bold mb-4 tracking-tight">
-                <span className="text-gradient">Endless</span>
-                <span className="text-foreground/90"> Mode</span>
+                <span className="text-gradient">Rhythms</span>
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed">
-                Tap to the rhythm. First mistake ends the run.
+                Tap to the beat. First mistake ends the run.
               </p>
             </div>
 
@@ -374,6 +392,18 @@ export function Game() {
                   step={1}
                   valueFormatter={(v) => difficultyLabels[difficulties[v]]}
                 />
+
+                <Switch
+                  label="Group Mode"
+                  checked={groupMode}
+                  onCheckedChange={setGroupMode}
+                />
+
+                <Switch
+                  label="Tuplets"
+                  checked={includeTuplets}
+                  onCheckedChange={setIncludeTuplets}
+                />
               </div>
             </div>
 
@@ -396,7 +426,9 @@ export function Game() {
               className="text-xs text-muted-foreground/70 text-center mt-8 animate-fade-in-up opacity-0 tracking-wide"
               style={{ animationDelay: "0.4s" }}
             >
-              Use any key or tap to play — try two hands for fast rhythms
+              {groupMode
+                ? "Notes highlight as you play — press Escape or tap Stop to end"
+                : "Use any key or tap to play — try two hands for fast rhythms"}
             </p>
           </div>
         )}
@@ -417,7 +449,7 @@ export function Game() {
                 currentBar={0}
                 currentBeat={0}
                 beatFraction={0}
-                hitVersion={hitVersion}
+                currentTime={transportEngine.now()}
               />
             </div>
 
@@ -475,19 +507,30 @@ export function Game() {
                 currentBar={currentBar}
                 currentBeat={currentBeat}
                 beatFraction={beatFraction}
-                hitVersion={hitVersion}
+                currentTime={currentTime}
               />
             </div>
 
             {/* Flexible spacer */}
             <div className="flex-1 min-h-4" />
 
-            {/* Touch Pad */}
+            {/* Touch Pad or Stop Button */}
             <div className="max-w-xl mx-auto w-full pb-4 md:pb-6">
-              <TouchPad
-                onTap={handleHit}
-                lastResult={lastResult}
-              />
+              {groupMode ? (
+                <Button
+                  size="xl"
+                  variant="outline"
+                  onClick={stopGame}
+                  className="w-full text-lg font-semibold"
+                >
+                  Stop
+                </Button>
+              ) : (
+                <TouchPad
+                  onTap={handleHit}
+                  lastResult={lastResult}
+                />
+              )}
             </div>
           </div>
         )}

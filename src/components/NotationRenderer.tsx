@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from "react"
-import { Renderer, Stave, StaveNote, Voice, Formatter, Beam, RenderContext, Dot } from "vexflow"
-import type { RuntimeBar, RuntimeOnset } from "@/types"
+import { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Tuplet, RenderContext, Dot } from "vexflow"
+import type { RuntimeBar, RuntimeOnset, TupletInfo } from "@/types"
 
 interface NotationRendererProps {
   bars: RuntimeBar[]
   currentBar: number
   currentBeat: number
   beatFraction: number
-  hitVersion: number
-}
-
-function shouldHighlightOnset(onset: RuntimeOnset): boolean {
-  return onset.hit === true
+  currentTime: number
 }
 
 function barToGrid(bar: RuntimeBar): {
@@ -22,11 +18,47 @@ function barToGrid(bar: RuntimeBar): {
   const slotToOnset = new Map<number, typeof bar.onsets[0]>()
 
   for (const onset of bar.onsets) {
-    const slot = onset.beatIndex * 4 + onset.n
-    grid[slot] = true
-    slotToOnset.set(slot, onset)
+    // Only process regular (d=4) onsets for the grid
+    if (onset.d === 4) {
+      const slot = onset.beatIndex * 4 + onset.n
+      grid[slot] = true
+      slotToOnset.set(slot, onset)
+    }
   }
   return { grid, slotToOnset }
+}
+
+function hasTuplets(bar: RuntimeBar): boolean {
+  return bar.onsets.some((o) => o.d !== 4)
+}
+
+interface TupletGroup {
+  beatIndex: number
+  tuplet: TupletInfo
+  onsets: RuntimeOnset[]
+}
+
+function groupTupletsByBeat(bar: RuntimeBar): TupletGroup[] {
+  const groups: TupletGroup[] = []
+  const tupletOnsets = bar.onsets.filter((o) => o.tuplet)
+  
+  for (const onset of tupletOnsets) {
+    const existing = groups.find(
+      (g) => g.beatIndex === onset.beatIndex && 
+             g.tuplet.numNotes === onset.tuplet!.numNotes
+    )
+    if (existing) {
+      existing.onsets.push(onset)
+    } else {
+      groups.push({
+        beatIndex: onset.beatIndex,
+        tuplet: onset.tuplet!,
+        onsets: [onset],
+      })
+    }
+  }
+  
+  return groups
 }
 
 function processBeat(
@@ -50,13 +82,13 @@ function processBeat(
       const onset = slotToOnset.get(onsetSlot) || null
 
       if (i === 0 && restCount === 3) {
-        note = new StaveNote({ keys: ["b/4"], duration: "q", stemDirection: 1 })
+        note = new StaveNote({ keys: ["c/5"], duration: "q", stemDirection: 1 })
         i += 4
       } else if (i % 2 === 0 && restCount >= 1) {
-        note = new StaveNote({ keys: ["b/4"], duration: "8", stemDirection: 1 })
+        note = new StaveNote({ keys: ["c/5"], duration: "8", stemDirection: 1 })
         i += 2
       } else {
-        note = new StaveNote({ keys: ["b/4"], duration: "16", stemDirection: 1 })
+        note = new StaveNote({ keys: ["c/5"], duration: "16", stemDirection: 1 })
         i += 1
       }
 
@@ -99,6 +131,80 @@ function processBeat(
   return result
 }
 
+function combineConsecutiveRests(
+  notes: StaveNote[]
+): StaveNote[] {
+  const result: StaveNote[] = []
+  let i = 0
+
+  while (i < notes.length) {
+    const note = notes[i]
+    
+    if (!note.isRest()) {
+      result.push(note)
+      i++
+      continue
+    }
+
+    // Try to combine consecutive rests
+    let j = i + 1
+    let totalDuration = getDurationInSixteenths(note.getDuration())
+
+    while (j < notes.length && notes[j].isRest()) {
+      totalDuration += getDurationInSixteenths(notes[j].getDuration())
+      j++
+    }
+
+    // Create combined rest if multiple rests found
+    if (j > i + 1) {
+      const combined = createCombinedRest(totalDuration)
+      if (combined) {
+        result.push(combined)
+      } else {
+        // Fallback: add original rests if combination fails
+        for (let k = i; k < j; k++) {
+          result.push(notes[k])
+        }
+      }
+    } else {
+      result.push(note)
+    }
+    
+    i = j
+  }
+
+  return result
+}
+
+function getDurationInSixteenths(duration: string): number {
+  switch (duration) {
+    case "qr": return 4   // quarter rest = 4 sixteenths
+    case "8r": return 2   // eighth rest = 2 sixteenths
+    case "8dr": return 3  // dotted eighth rest = 3 sixteenths
+    case "16r": return 1  // sixteenth rest = 1 sixteenth
+    default: return 0
+  }
+}
+
+function createCombinedRest(sixteenths: number): StaveNote | null {
+  switch (sixteenths) {
+    case 1:
+      return new StaveNote({ keys: ["b/4"], duration: "16r" })
+    case 2:
+      return new StaveNote({ keys: ["b/4"], duration: "8r" })
+    case 3: {
+      const rest = new StaveNote({ keys: ["b/4"], duration: "8dr" })
+      Dot.buildAndAttach([rest], { all: true })
+      return rest
+    }
+    case 4:
+      return new StaveNote({ keys: ["b/4"], duration: "qr" })
+    default:
+      // For larger durations, create multiple rests
+      return null
+  }
+}
+
 function gridToVexNotes(
   grid: boolean[],
   slotToOnset: Map<number, RuntimeOnset>
@@ -131,7 +237,10 @@ function gridToVexNotes(
     beamGroups.push(beamable)
   }
 
-  return { notes: allNotes, beamGroups, noteToOnset }
+  // Combine consecutive rests within the note array
+  const combinedNotes = combineConsecutiveRests(allNotes)
+
+  return { notes: combinedNotes, beamGroups, noteToOnset }
 }
 
 // Minimum bar width to ensure notes don't overflow
@@ -171,6 +280,35 @@ interface BarRenderResult {
   beamsWithNotes: { beam: Beam; notes: StaveNote[] }[]
 }
 
+function createTupletNotes(
+  group: TupletGroup,
+  noteToOnset: Map<StaveNote, RuntimeOnset>
+): { notes: StaveNote[]; tuplet: Tuplet } {
+  const notes: StaveNote[] = []
+  const { numNotes, notesOccupied } = group.tuplet
+  
+  // Determine duration based on tuplet type
+  // Triplet eighths: 3 notes in space of 2 eighths = each is "8"
+  // Quintuplet 16ths: 5 notes in space of 4 16ths = each is "16"
+  const duration = numNotes === 3 ? "8" : "16"
+  
+  // Create notes for each onset in the tuplet
+  for (const onset of group.onsets) {
+    const note = new StaveNote({ keys: ["c/5"], duration, stemDirection: 1 })
+    notes.push(note)
+    noteToOnset.set(note, onset)
+  }
+  
+  // Create the tuplet bracket
+  const tuplet = new Tuplet(notes, {
+    numNotes: numNotes,
+    notesOccupied: notesOccupied,
+    bracketed: true,
+  })
+  
+  return { notes, tuplet }
+}
+
 function renderBar(
   ctx: RenderContext,
   bar: RuntimeBar,
@@ -188,38 +326,119 @@ function renderBar(
 
   stave.setContext(ctx).draw()
 
-  const { grid, slotToOnset } = barToGrid(bar)
-  const { notes, beamGroups, noteToOnset } = gridToVexNotes(grid, slotToOnset)
-
-  if (notes.length === 0) return { noteToOnset: new Map(), beamsWithNotes: [] }
-
-  const voice = new Voice({ numBeats: 4, beatValue: 4 })
-  voice.setStrict(false)
-  voice.addTickables(notes)
-
+  const noteToOnset = new Map<StaveNote, RuntimeOnset>()
   const beamsWithNotes: { beam: Beam; notes: StaveNote[] }[] = []
-  for (const group of beamGroups) {
-    if (group.length >= 2) {
-      const beam = new Beam(group)
-      beamsWithNotes.push({ beam, notes: group })
+  const tupletObjects: Tuplet[] = []
+  
+  // Check if bar has tuplets
+  if (hasTuplets(bar)) {
+    // For bars with tuplets, we need a different approach
+    // Process beat by beat, handling tuplets specially
+    const allNotes: StaveNote[] = []
+    const tupletGroups = groupTupletsByBeat(bar)
+    
+    for (let beat = 0; beat < 4; beat++) {
+      const tupletGroup = tupletGroups.find((g) => g.beatIndex === beat)
+      
+      if (tupletGroup) {
+        // This beat has a tuplet
+        const { notes, tuplet } = createTupletNotes(tupletGroup, noteToOnset)
+        allNotes.push(...notes)
+        tupletObjects.push(tuplet)
+        
+        // Beam tuplet notes if 2+
+        if (notes.length >= 2) {
+          const beam = new Beam(notes)
+          beamsWithNotes.push({ beam, notes })
+        }
+      } else {
+        // Check for regular onsets on this beat
+        const beatOnsets = bar.onsets.filter((o) => o.beatIndex === beat && o.d === 4)
+        if (beatOnsets.length === 0) {
+          // Add quarter rest
+          allNotes.push(new StaveNote({ keys: ["b/4"], duration: "qr" }))
+        } else {
+          // Process regular onsets for this beat using grid approach
+          const beatGrid = new Array(4).fill(false)
+          const beatSlotToOnset = new Map<number, RuntimeOnset>()
+          for (const onset of beatOnsets) {
+            beatGrid[onset.n] = true
+            beatSlotToOnset.set(onset.n, onset)
+          }
+          const beatNotes = processBeat(beatGrid, 0, beatSlotToOnset)
+          const beamable: StaveNote[] = []
+          for (const { note, onset } of beatNotes) {
+            allNotes.push(note)
+            if (onset) {
+              noteToOnset.set(note, onset)
+            }
+            if (!note.isRest()) {
+              const dur = note.getDuration()
+              if (dur === "8" || dur === "16") {
+                beamable.push(note)
+              }
+            }
+          }
+          if (beamable.length >= 2) {
+            beamsWithNotes.push({ beam: new Beam(beamable), notes: beamable })
+          }
+        }
+      }
     }
-  }
+    
+    if (allNotes.length === 0) return { noteToOnset: new Map(), beamsWithNotes: [] }
+    
+    const voice = new Voice({ numBeats: 4, beatValue: 4 })
+    voice.setStrict(false)
+    voice.addTickables(allNotes)
+    
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave)
+    voice.draw(ctx, stave)
+    
+    for (const { beam } of beamsWithNotes) {
+      beam.setContext(ctx).draw()
+    }
+    
+    for (const tuplet of tupletObjects) {
+      tuplet.setContext(ctx).draw()
+    }
+  } else {
+    // Original logic for bars without tuplets
+    const { grid, slotToOnset } = barToGrid(bar)
+    const { notes, beamGroups, noteToOnset: gridNoteToOnset } = gridToVexNotes(grid, slotToOnset)
 
-  // Let VexFlow compute optimal spacing within the stave
-  new Formatter().joinVoices([voice]).formatToStave([voice], stave)
-  voice.draw(ctx, stave)
+    if (notes.length === 0) return { noteToOnset: new Map(), beamsWithNotes: [] }
 
-  for (const { beam } of beamsWithNotes) {
-    beam.setContext(ctx).draw()
+    // Copy to our noteToOnset
+    gridNoteToOnset.forEach((onset, note) => noteToOnset.set(note, onset))
+
+    const voice = new Voice({ numBeats: 4, beatValue: 4 })
+    voice.setStrict(false)
+    voice.addTickables(notes)
+
+    for (const group of beamGroups) {
+      if (group.length >= 2) {
+        const beam = new Beam(group)
+        beamsWithNotes.push({ beam, notes: group })
+      }
+    }
+
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave)
+    voice.draw(ctx, stave)
+
+    for (const { beam } of beamsWithNotes) {
+      beam.setContext(ctx).draw()
+    }
   }
 
   return { noteToOnset, beamsWithNotes }
 }
 
-export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, hitVersion }: NotationRendererProps) {
+export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, currentTime }: NotationRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 800, height: 150 })
+  const barResultsRef = useRef<BarRenderResult[]>([])
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -257,6 +476,7 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
   }
   const totalWidth = x
 
+  // Render notation - only when bars/dimensions change
   useEffect(() => {
     if (!svgRef.current || bars.length === 0) return
 
@@ -276,6 +496,8 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
       const result = renderBar(ctx, bar, barX, 30, barW, isFirst)
       allBarResults.push(result)
     })
+
+    barResultsRef.current = allBarResults
 
     const svg = svgRef.current.querySelector("svg")
     if (svg) {
@@ -314,62 +536,44 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
         const fill = el.getAttribute("fill")
         if (fill !== "none") el.setAttribute("fill", color)
       })
+    }
 
-      const goldColor = "#f59e0b"
+  }, [bars, dimensions, barWidths, barPositions, totalWidth])
 
-      const applyGoldToElement = (elem: Element | null | undefined) => {
-        if (!elem) return
-        elem.querySelectorAll("*").forEach((child) => {
-          const svgChild = child as SVGElement
-          if (svgChild.hasAttribute("fill") && svgChild.getAttribute("fill") !== "none") {
-            svgChild.setAttribute("fill", goldColor)
-          }
-          if (svgChild.hasAttribute("stroke") && svgChild.getAttribute("stroke") !== "none") {
-            svgChild.setAttribute("stroke", goldColor)
-          }
-          if (svgChild.style) {
-            if (svgChild.style.fill && svgChild.style.fill !== "none") {
-              svgChild.style.fill = goldColor
-            }
-            if (svgChild.style.stroke && svgChild.style.stroke !== "none") {
-              svgChild.style.stroke = goldColor
-            }
-          }
-        })
-        elem.querySelectorAll("path, ellipse, circle, rect, line").forEach((el) => {
-          const svgEl = el as SVGElement
-          const fill = svgEl.getAttribute("fill")
-          const stroke = svgEl.getAttribute("stroke")
-          if (fill !== "none") {
-            svgEl.setAttribute("fill", goldColor)
-            svgEl.style.fill = goldColor
-          }
-          if (stroke !== "none") {
-            svgEl.setAttribute("stroke", goldColor)
-            svgEl.style.stroke = goldColor
-          }
-        })
-      }
+  // Apply gold highlighting based on current time
+  useEffect(() => {
+    const baseColor = "#e8dcc8"
+    const goldColor = "#f59e0b"
 
-      for (const { noteToOnset, beamsWithNotes } of allBarResults) {
-        noteToOnset.forEach((onset, note) => {
-          if (shouldHighlightOnset(onset)) {
-            applyGoldToElement(note.getSVGElement())
-          }
-        })
-
-        for (const { beam, notes } of beamsWithNotes) {
-          const allNotesHit = notes.every((note) => {
-            const onset = noteToOnset.get(note)
-            return onset && shouldHighlightOnset(onset)
-          })
-          if (allNotesHit) {
-            applyGoldToElement(beam.getSVGElement())
-          }
+    const applyColor = (elem: Element | null, color: string) => {
+      if (!elem) return
+      elem.querySelectorAll("*").forEach((child) => {
+        const svg = child as SVGElement
+        if (svg.getAttribute("fill") && svg.getAttribute("fill") !== "none") {
+          svg.setAttribute("fill", color)
+          svg.style.fill = color
         }
+        if (svg.getAttribute("stroke") && svg.getAttribute("stroke") !== "none") {
+          svg.setAttribute("stroke", color)
+          svg.style.stroke = color
+        }
+      })
+    }
+
+    for (const { noteToOnset, beamsWithNotes } of barResultsRef.current) {
+      noteToOnset.forEach((onset, note) => {
+        applyColor(note.getSVGElement(), currentTime >= onset.timeSec ? goldColor : baseColor)
+      })
+
+      for (const { beam, notes } of beamsWithNotes) {
+        const allHit = notes.every((n) => {
+          const onset = noteToOnset.get(n)
+          return onset && currentTime >= onset.timeSec
+        })
+        applyColor(beam.getSVGElement(), allHit ? goldColor : baseColor)
       }
     }
-  }, [bars, dimensions, barWidths, barPositions, totalWidth, hitVersion])
+  }, [currentTime])
 
   // Calculate scroll position based on current position within the bar
   // Find which bar in our bars array corresponds to currentBar

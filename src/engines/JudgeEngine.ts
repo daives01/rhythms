@@ -6,8 +6,8 @@ export type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timi
 export type GameOverCallback = (reason: "miss" | "extra") => void
 
 export class JudgeEngine {
-  private toleranceMs: number = 100
-  private earlyWindowMs: number = 300
+  private baseToleranceMs: number = 100
+  private bpm: number = 120
   private latencyOffsetMs: number = 0
   private onJudgeCallbacks: Set<JudgeCallback> = new Set()
   private onGameOverCallbacks: Set<GameOverCallback> = new Set()
@@ -15,12 +15,40 @@ export class JudgeEngine {
   private isActive: boolean = false
 
   setTolerance(toleranceMs: number): void {
-    this.toleranceMs = Math.max(50, Math.min(150, toleranceMs))
-    this.earlyWindowMs = this.toleranceMs * 3
+    this.baseToleranceMs = Math.max(40, Math.min(150, toleranceMs))
+  }
+
+  setBpm(bpm: number): void {
+    this.bpm = Math.max(40, Math.min(300, bpm))
+  }
+
+  private getScaledTolerance(): number {
+    const beatDurationMs = (60 / this.bpm) * 1000
+    const sixteenthDurationMs = beatDurationMs / 4
+
+    // Scale tolerance so it never exceeds ~40% of a sixteenth note
+    // This prevents overlapping hit windows at high BPM/density
+    const maxToleranceForBpm = sixteenthDurationMs * 0.4
+
+    // Also scale down the base tolerance at higher BPMs
+    // At 60 BPM: use full base tolerance
+    // At 180 BPM: use ~60% of base tolerance
+    const bpmScale = Math.max(0.5, 1 - (this.bpm - 60) / 300)
+    const scaledBase = this.baseToleranceMs * bpmScale
+
+    return Math.min(scaledBase, maxToleranceForBpm)
+  }
+
+  private getEarlyWindow(): number {
+    // Early window scales with tolerance but capped to prevent hitting notes too early
+    const tolerance = this.getScaledTolerance()
+    const beatDurationMs = (60 / this.bpm) * 1000
+    const maxEarly = beatDurationMs * 0.4 // Max 40% of a beat early
+    return Math.min(tolerance * 2.5, maxEarly)
   }
 
   getTolerance(): number {
-    return this.toleranceMs
+    return this.getScaledTolerance()
   }
 
   setLatencyOffset(offsetMs: number): void {
@@ -59,8 +87,8 @@ export class JudgeEngine {
 
     const rawHitTime = transportEngine.now()
     const hitTime = rawHitTime - this.latencyOffsetMs / 1000
-    const toleranceSec = this.toleranceMs / 1000
-    const earlyWindowSec = this.earlyWindowMs / 1000
+    const toleranceSec = this.getScaledTolerance() / 1000
+    const earlyWindowSec = this.getEarlyWindow() / 1000
     const unhitOnsets = rhythmBuffer.getUnhitOnsets()
 
     let bestOnset: RuntimeOnset | null = null
@@ -97,7 +125,7 @@ export class JudgeEngine {
 
       const rawTime = transportEngine.now()
       const adjustedTime = rawTime - this.latencyOffsetMs / 1000
-      const toleranceSec = this.toleranceMs / 1000
+      const toleranceSec = this.getScaledTolerance() / 1000
       const unhitOnsets = rhythmBuffer.getUnhitOnsets()
 
       for (const onset of unhitOnsets) {

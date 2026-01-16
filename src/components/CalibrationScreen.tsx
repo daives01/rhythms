@@ -22,7 +22,7 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
   const [calculatedOffset, setCalculatedOffset] = useState<number | null>(null)
   
   const expectedBeatTimes = useRef<number[]>([])
-  const beatIndex = useRef(0)
+  const lastMatchedBeatIndex = useRef(0)
   const isListening = useRef(false)
 
   const handleCancel = () => {
@@ -32,19 +32,34 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
   }
 
   const handleTap = () => {
-    if (phase !== "tapping") return
+    if (phase !== "tapping" || !isListening.current) return
 
     const tapTime = transportEngine.now()
-    const expectedTime = expectedBeatTimes.current[beatIndex.current]
-
-    if (expectedTime !== undefined) {
-      const offset = (tapTime - expectedTime) * 1000
-
+    const beats = expectedBeatTimes.current
+    
+    // Find the closest beat to this tap that hasn't been matched yet
+    let bestIndex = -1
+    let bestOffset = Infinity
+    
+    for (let i = lastMatchedBeatIndex.current; i < beats.length; i++) {
+      const offset = (tapTime - beats[i]) * 1000
+      
+      // Only consider beats within deviation range
       if (Math.abs(offset) <= MAX_DEVIATION) {
-        setOffsets(prev => [...prev, offset])
-        setTapCount(prev => prev + 1)
-        beatIndex.current++
+        if (Math.abs(offset) < Math.abs(bestOffset)) {
+          bestIndex = i
+          bestOffset = offset
+        }
+      } else if (offset < -MAX_DEVIATION) {
+        // This beat is too far in the future, stop searching
+        break
       }
+    }
+    
+    if (bestIndex !== -1) {
+      setOffsets(prev => [...prev, bestOffset])
+      setTapCount(prev => prev + 1)
+      lastMatchedBeatIndex.current = bestIndex + 1
     }
   }
 
@@ -70,7 +85,7 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
     setCountInBeat(null)
     setTapCount(0)
     setOffsets([])
-    beatIndex.current = 0
+    lastMatchedBeatIndex.current = 0
     expectedBeatTimes.current = []
     isListening.current = true
 
@@ -78,6 +93,8 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
   }
 
   useEffect(() => {
+    if (phase !== "countIn" && phase !== "tapping") return
+
     const unsubBeat = transportEngine.onBeat((beat, bar, isCountIn) => {
       if (!isListening.current) return
       
@@ -95,7 +112,7 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
     return () => {
       unsubBeat()
     }
-  }, [])
+  }, [phase])
 
   useEffect(() => {
     if (tapCount >= REQUIRED_TAPS && phase === "tapping") {

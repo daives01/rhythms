@@ -2,6 +2,12 @@ export interface Onset {
   beatIndex: 0 | 1 | 2 | 3
   n: number
   d: number
+  tuplet?: TupletInfo
+}
+
+export interface TupletInfo {
+  numNotes: number      // how many notes in the tuplet
+  notesOccupied: number // fits in the space of this many regular notes
 }
 
 export interface RuntimeOnset {
@@ -11,6 +17,7 @@ export interface RuntimeOnset {
   beatIndex: number
   n: number
   d: number
+  tuplet?: TupletInfo
 }
 
 export interface Bar {
@@ -40,7 +47,7 @@ export type Difficulty = "easy" | "medium" | "hard"
 
 export interface BeatPatternOnset {
   n: number  // slot within the beat pattern (0-7 for 2-beat patterns)
-  d: number  // always 4 (sixteenth note grid)
+  d: number  // denominator: 4 = sixteenths, 3 = triplets, 5 = quintuplets
 }
 
 export interface BeatPattern {
@@ -49,4 +56,5 @@ export interface BeatPattern {
   length: 1 | 2  // in beats
   onsets: BeatPatternOnset[]
   difficulty: Difficulty[]
+  tuplet?: TupletInfo   // if present, this pattern is a tuplet
 }

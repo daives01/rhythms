@@ -230,6 +230,22 @@
       "length": 2,
       "onsets": [{ "n": 0, "d": 4 }, { "n": 6, "d": 4 }],
       "difficulty": ["hard"]
+    },
+    {
+      "id": "triplet-8",
+      "name": "Eighth note triplet",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 3 }, { "n": 1, "d": 3 }, { "n": 2, "d": 3 }],
+      "difficulty": ["medium", "hard"],
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    },
+    {
+      "id": "quintuplet-16",
+      "name": "Sixteenth quintuplet",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 5 }, { "n": 1, "d": 5 }, { "n": 2, "d": 5 }, { "n": 3, "d": 5 }, { "n": 4, "d": 5 }],
+      "difficulty": ["hard"],
+      "tuplet": { "numNotes": 5, "notesOccupied": 4 }
     }
   ]
 }

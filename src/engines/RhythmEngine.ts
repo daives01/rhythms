@@ -15,8 +15,12 @@ function generateOnsetId(): string {
 
 const allPatterns = beatsConfig.beats as BeatPattern[]
 
-function getPatternsForDifficulty(difficulty: Difficulty): BeatPattern[] {
-  return allPatterns.filter((p) => p.difficulty.includes(difficulty))
+function getPatternsForDifficulty(difficulty: Difficulty, includeTuplets: boolean): BeatPattern[] {
+  return allPatterns.filter((p) => {
+    if (!p.difficulty.includes(difficulty)) return false
+    if (!includeTuplets && p.tuplet) return false
+    return true
+  })
 }
 
 function pickRandomPattern(patterns: BeatPattern[], targetLength?: 1 | 2): BeatPattern {
@@ -40,8 +44,8 @@ export function calculateBarComplexity(bar: Bar): number {
   return numOnsets + syncopation
 }
 
-export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false): Bar {
-  const patterns = getPatternsForDifficulty(difficulty)
+export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false, includeTuplets: boolean = false): Bar {
+  const patterns = getPatternsForDifficulty(difficulty, includeTuplets)
   const onsets: Onset[] = []
 
   let beatsRemaining = 4
@@ -80,15 +84,19 @@ export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false)
 
     // Convert pattern onsets to bar onsets
     for (const pOnset of pattern.onsets) {
-      // pOnset.n is the slot within the pattern (0-3 for 1-beat, 0-7 for 2-beat)
-      const slotInBar = currentBeat * 4 + pOnset.n
-      const beatIndex = Math.floor(slotInBar / 4) as 0 | 1 | 2 | 3
-      const n = slotInBar % 4
+      // For tuplets, d != 4. pOnset.n is slot within the tuplet subdivision
+      // E.g., for triplets: d=3, n=0,1,2 within each beat
+      // For 2-beat patterns with d=3: n goes 0-5 (3 per beat * 2 beats)
+      const slotsPerBeat = pOnset.d  // 3 for triplets, 4 for regular, 5 for quintuplets
+      const beatOffset = Math.floor(pOnset.n / slotsPerBeat)
+      const beatIndex = (currentBeat + beatOffset) as 0 | 1 | 2 | 3
+      const n = pOnset.n % slotsPerBeat
 
       onsets.push({
         beatIndex,
         n,
-        d: 4,
+        d: pOnset.d,
+        tuplet: pattern.tuplet,
       })
     }
 
@@ -96,11 +104,11 @@ export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false)
     beatsRemaining -= pattern.length
   }
 
-  // Sort onsets by position
+  // Sort onsets by position (normalize to common denominator for comparison)
   onsets.sort((a, b) => {
-    const aIdx = a.beatIndex * 4 + a.n
-    const bIdx = b.beatIndex * 4 + b.n
-    return aIdx - bIdx
+    const aPos = a.beatIndex + a.n / a.d
+    const bPos = b.beatIndex + b.n / b.d
+    return aPos - bPos
   })
 
   return {
@@ -117,6 +125,7 @@ export function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
     beatIndex: onset.beatIndex,
     n: onset.n,
     d: onset.d,
+    tuplet: onset.tuplet,
   }))
 
   return {
@@ -129,10 +138,15 @@ export function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
 export class RhythmBuffer {
   private bars: RuntimeBar[] = []
   private difficulty: Difficulty = "medium"
+  private includeTuplets: boolean = false
   private nextBarIndex: number = 0
 
   setDifficulty(difficulty: Difficulty): void {
     this.difficulty = difficulty
+  }
+
+  setIncludeTuplets(include: boolean): void {
+    this.includeTuplets = include
   }
 
   reset(): void {
@@ -152,7 +166,7 @@ export class RhythmBuffer {
   }
 
   appendBar(isFirstBar: boolean = false): RuntimeBar {
-    const bar = generateBar(this.difficulty, isFirstBar)
+    const bar = generateBar(this.difficulty, isFirstBar, this.includeTuplets)
     const runtimeBar = toRuntimeBar(bar, this.nextBarIndex)
     this.bars.push(runtimeBar)
     this.nextBarIndex++
