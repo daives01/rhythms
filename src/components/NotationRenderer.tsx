@@ -598,7 +598,8 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
 
     for (const { noteToOnset, beamsWithNotes } of barResultsRef.current) {
       noteToOnset.forEach((onset, note) => {
-        applyColor(note.getSVGElement(), currentTime >= onset.timeSec ? goldColor : baseColor)
+        const el = note.getSVGElement()
+        if (el) applyColor(el, currentTime >= onset.timeSec ? goldColor : baseColor)
       })
 
       for (const { beam, notes } of beamsWithNotes) {
@@ -606,7 +607,8 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
           const onset = noteToOnset.get(n)
           return onset && currentTime >= onset.timeSec
         })
-        applyColor(beam.getSVGElement(), allHit ? goldColor : baseColor)
+        const el = beam.getSVGElement()
+        if (el) applyColor(el, allHit ? goldColor : baseColor)
       }
     }
   }, [currentTime])

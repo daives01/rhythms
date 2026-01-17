@@ -31,6 +31,26 @@ const DEFAULT_SETTINGS: StoredSettings = {
   includeTuplets: false,
 }
 
+const calculateScore = (
+  hits: number,
+  bpm: number,
+  difficulty: Difficulty,
+  timeSurvived: number
+): number => {
+  const difficultyMultipliers: Record<Difficulty, number> = {
+    easy: 1,
+    medium: 1.5,
+    hard: 2.5,
+  }
+  
+  // Base: hits count, scaled by difficulty
+  const difficultyBonus = difficultyMultipliers[difficulty]
+  const timeBonus = Math.max(1, timeSurvived / 10)
+  const bpmBonus = bpm / 120 // normalize to 120 BPM
+  
+  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
+}
+
 function loadSettings(): StoredSettings {
   try {
     const stored = localStorage.getItem(SETTINGS_KEY)
@@ -458,7 +478,7 @@ export function Game() {
         )}
 
         {gameState === "countIn" && (
-          <div className="flex-1 flex flex-col p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
+          <div className="flex-1 flex flex-col justify-center p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
             <div
               className={cn(
                 "rounded-2xl p-4 md:p-5 border transition-all duration-150",
@@ -477,7 +497,7 @@ export function Game() {
               />
             </div>
 
-            <div className="flex-1 flex flex-col items-center justify-center">
+            <div className="flex flex-col items-center justify-center">
               <div className="text-center relative">
                 <p className="text-muted-foreground mb-8 text-lg tracking-wide animate-fade-in">
                   Get ready...
@@ -557,94 +577,123 @@ export function Game() {
         )}
 
         {gameState === "gameOver" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
-            {/* Game Over Title with dramatic styling */}
-            <div className="text-center mb-10 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
+          <div className="flex-1 flex flex-col items-center justify-center p-4 w-full relative overflow-hidden">
+            {/* Dramatic spotlight effect */}
+            <div 
+              className="absolute inset-0 pointer-events-none animate-fade-in opacity-0"
+              style={{
+                background: "radial-gradient(ellipse 60% 40% at 50% 30%, rgba(239,68,68,0.15) 0%, transparent 60%)",
+                animationDelay: "0s",
+              }}
+            />
+            
+
+
+            {/* Game Over Title */}
+            <div className="relative z-10 text-center mb-6 animate-fade-in-up opacity-0" style={{ animationDelay: "0.15s" }}>
               <h2
-                className="text-5xl md:text-6xl font-display font-bold text-miss mb-3"
-                style={{ textShadow: "0 0 40px rgba(239,68,68,0.4)" }}
+                className="text-4xl sm:text-5xl font-display font-bold text-miss tracking-tight"
+                style={{ 
+                  textShadow: "0 0 40px rgba(239,68,68,0.4)",
+                }}
               >
                 Game Over
               </h2>
-              <p className="text-muted-foreground text-lg">
-                {gameOverReason === "miss" ? "You missed a note" : "Extra tap detected"}
+              <p className="text-muted-foreground/60 text-sm mt-2">
+                {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
               </p>
             </div>
 
-            {/* Score Card */}
-            <div
-              className="w-full rounded-3xl border border-border/50 overflow-hidden mb-8 animate-score-reveal opacity-0"
-              style={{
-                animationDelay: "0.2s",
-                background:
-                  "linear-gradient(to bottom, rgba(28,25,23,0.8), rgba(12,10,9,0.9))",
-                boxShadow:
-                  "0 4px 40px -10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03)",
-              }}
+            {/* Main Score - hero treatment */}
+            <div 
+              className="relative z-10 mb-6 animate-score-reveal opacity-0 text-center" 
+              style={{ animationDelay: "0.3s" }}
             >
-              <div className="px-6 py-5 border-b border-border/30">
-                <h3 className="text-xs uppercase tracking-[0.2em] text-muted-foreground text-center font-semibold">
-                  Final Score
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-3 divide-x divide-border/30 py-8">
-                {[
-                  { value: score.barsSurvived, label: "Bars", highlight: true, delay: 0.3 },
-                  { value: score.totalHits, label: "Hits", highlight: false, delay: 0.4 },
-                  { value: score.timeSurvived.toFixed(1), label: "Seconds", highlight: false, delay: 0.5 },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="text-center px-4 animate-stat-count opacity-0"
-                    style={{ animationDelay: `${stat.delay}s` }}
-                  >
-                    <div
-                      className={cn(
-                        "text-4xl md:text-5xl font-bold tabular-nums mb-2",
-                        stat.highlight ? "text-primary" : "text-foreground"
-                      )}
-                      style={
-                        stat.highlight
-                          ? { textShadow: "0 0 20px rgba(245,158,11,0.4)" }
-                          : undefined
-                      }
-                    >
-                      {stat.value}
-                    </div>
-                    <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground font-medium">
-                      {stat.label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-6 py-4 bg-black/20 border-t border-border/30">
-                <div className="flex justify-center gap-8 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Tempo </span>
-                    <span className="font-semibold text-foreground">{bpm}</span>
-                    <span className="text-muted-foreground/60 text-xs ml-1">BPM</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Difficulty </span>
-                    <span className="font-semibold text-foreground">{difficultyLabels[difficulty]}</span>
-                  </div>
+              <div className="relative inline-block">
+                <div 
+                  className="text-7xl sm:text-8xl md:text-9xl font-display tabular-nums text-primary"
+                  style={{ 
+                    textShadow: "0 0 80px rgba(245,158,11,0.5), 0 0 40px rgba(245,158,11,0.3)",
+                  }}
+                >
+                  {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
                 </div>
+                <div 
+                  className="absolute -inset-4 rounded-full opacity-20 blur-2xl -z-10"
+                  style={{ background: "radial-gradient(circle, rgba(245,158,11,0.4) 0%, transparent 70%)" }}
+                />
+              </div>
+              <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground/50 mt-2">
+                Final Score
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div
-              className="w-full space-y-3 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.6s" }}
+            {/* Stats ribbon - horizontal flow */}
+            <div 
+              className="relative z-10 flex items-center justify-center gap-6 sm:gap-10 mb-8 animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.45s" }}
             >
-              <Button size="xl" onClick={startGame} className="w-full">
-                Play Again
+              {[
+                { value: score.totalHits, label: "hits" },
+                { value: `${score.timeSurvived.toFixed(1)}s`, label: "survived" },
+                { value: score.barsSurvived, label: "bars" },
+              ].map((stat, i, arr) => (
+                <>
+                  <div key={stat.label} className="text-center">
+                    <div className="text-2xl sm:text-3xl font-bold text-foreground tabular-nums">
+                      {stat.value}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mt-1">
+                      {stat.label}
+                    </div>
+                  </div>
+                  {i < arr.length - 1 && (
+                    <div className="w-px h-6 bg-border/30 hidden sm:block" />
+                  )}
+                </>
+              ))}
+            </div>
+
+            {/* Settings tag - subtle */}
+            <div 
+              className="relative z-10 flex items-center gap-3 text-xs text-muted-foreground/40 mb-8 animate-fade-in opacity-0"
+              style={{ animationDelay: "0.55s" }}
+            >
+              <span>{bpm} BPM</span>
+              <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+              <span>{difficultyLabels[difficulty]}</span>
+            </div>
+
+            {/* Action Buttons - refined */}
+            <div
+              className="relative z-10 flex flex-col items-center gap-3 w-full max-w-xs animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.65s" }}
+            >
+              <Button 
+                size="xl" 
+                onClick={startGame} 
+                className="w-full group relative overflow-hidden"
+              >
+                <span className="relative z-10">Play Again</span>
               </Button>
-              <Button variant="outline" size="lg" onClick={stopGame} className="w-full">
-                Back to Menu
+              <Button 
+                variant="ghost" 
+                size="lg" 
+                onClick={stopGame} 
+                className="w-full text-muted-foreground/70 hover:text-foreground"
+              >
+                Exit
               </Button>
+              
+              {/* Coffee Link */}
+              <a
+                href="https://buymeacoffee.com/danielives"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors mt-4 tracking-wide"
+              >
+                <span>♡</span> Support the dev
+              </a>
             </div>
           </div>
         )}
