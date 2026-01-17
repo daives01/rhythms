@@ -255,7 +255,7 @@ export function TouchPad({ onTap, disabled = false, lastResult }: TouchPadProps)
                 isPressed ? "text-primary" : "text-muted-foreground/60"
               )}
             >
-              Tap
+              Tap or type
             </span>
           </>
         )}

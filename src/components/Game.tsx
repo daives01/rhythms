@@ -452,19 +452,11 @@ export function Game() {
                 onClick={startGame}
                 className="w-full text-lg font-semibold animate-pulse-glow"
               >
-                Start Playing
+                Play
               </Button>
             </div>
 
-            {/* Hint text */}
-            <p
-              className="text-xs text-muted-foreground/70 text-center mt-8 animate-fade-in-up opacity-0 tracking-wide"
-              style={{ animationDelay: "0.4s" }}
-            >
-              {groupMode
-                ? "Practice mode — no game over, stop when ready"
-                : "Tap on mobile, any key on desktop"}
-            </p>
+
 
             {/* Calibrate button */}
             <button
@@ -558,14 +550,12 @@ export function Game() {
             {/* Touch Pad or Stop Button */}
             <div className="max-w-xl mx-auto w-full pb-4 md:pb-6">
               {groupMode ? (
-                <Button
-                  size="xl"
-                  variant="outline"
+                <button
                   onClick={stopGame}
-                  className="w-full text-lg font-semibold"
+                  className="w-full py-3 text-sm font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                 >
                   Stop
-                </Button>
+                </button>
               ) : (
                 <TouchPad
                   onTap={handleHit}
@@ -682,7 +672,7 @@ export function Game() {
                 onClick={stopGame} 
                 className="w-full text-muted-foreground/70 hover:text-foreground"
               >
-                Exit
+                Menu
               </Button>
               
               {/* Coffee Link */}

@@ -10,8 +10,16 @@ interface AmpSwitchProps {
 export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwitchProps) {
   return (
     <div className={cn("flex flex-col items-center gap-2", className)}>
+      {/* Label text that lights up when on */}
       {label && (
-        <span className="text-xs font-medium text-foreground-muted uppercase tracking-wider">
+        <span 
+          className={cn(
+            "text-xs font-medium uppercase tracking-wider transition-colors duration-200",
+            checked 
+              ? "text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" 
+              : "text-muted-foreground/50"
+          )}
+        >
           {label}
         </span>
       )}
@@ -33,15 +41,15 @@ export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwi
         {/* Inner recessed slot */}
         <div className="absolute inset-1.5 rounded-sm bg-gradient-to-b from-black via-zinc-950 to-zinc-900 shadow-[inset_0_2px_4px_rgba(0,0,0,0.8)]">
           {/* Position indicator lines */}
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-emerald-500/40" />
-          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-zinc-700" />
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-zinc-700" />
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-emerald-500/40" />
         </div>
 
         {/* Toggle lever */}
         <div
           className={cn(
             "absolute left-1/2 -translate-x-1/2 w-5 h-8 rounded transition-all duration-150 ease-out",
-            checked ? "top-1" : "bottom-1"
+            checked ? "bottom-1" : "top-1"
           )}
           style={{
             background: "linear-gradient(90deg, #52525b 0%, #a1a1aa 25%, #d4d4d8 50%, #a1a1aa 75%, #52525b 100%)",
@@ -63,11 +71,16 @@ export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwi
         </div>
       </button>
 
-      {/* On/Off labels */}
-      <div className="flex justify-between w-12 text-[10px] font-bold text-muted-foreground/70 uppercase tracking-wide">
-        <span className={cn("transition-colors", checked && "text-emerald-400")}>On</span>
-        <span className={cn("transition-colors", !checked && "text-foreground/70")}>Off</span>
-      </div>
+      {/* LED indicator */}
+      <div 
+        className={cn(
+          "w-2.5 h-2.5 rounded-full transition-all duration-200",
+          "border border-zinc-700",
+          checked 
+            ? "bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.7),inset_0_-1px_2px_rgba(0,0,0,0.3)]" 
+            : "bg-emerald-950 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
+        )}
+      />
     </div>
   )
 }
