@@ -18,6 +18,10 @@ export class TransportEngine {
   private clickFreqLow: number = 800
   private clickDuration: number = 0.05
 
+  private rhythmSoundVolume: number = 0
+  private rhythmOnsets: { timeSec: number; scheduled: boolean }[] = []
+  private scheduledOnsetTimes: Set<number> = new Set()
+
   async init(): Promise<void> {
     if (!this.audioContext) {
       this.audioContext = new AudioContext()
@@ -64,6 +68,22 @@ export class TransportEngine {
     return () => this.onBeatCallbacks.delete(callback)
   }
 
+  setRhythmSoundVolume(volume: number): void {
+    this.rhythmSoundVolume = Math.max(0, Math.min(1, volume))
+  }
+
+  setRhythmOnsets(onsets: { timeSec: number }[]): void {
+    this.rhythmOnsets = onsets.map((o) => ({
+      timeSec: o.timeSec,
+      scheduled: this.scheduledOnsetTimes.has(o.timeSec),
+    }))
+  }
+
+  clearRhythmOnsets(): void {
+    this.rhythmOnsets = []
+    this.scheduledOnsetTimes.clear()
+  }
+
   async start(): Promise<void> {
     await this.init()
     if (!this.audioContext || this.isRunning) return
@@ -83,6 +103,7 @@ export class TransportEngine {
       clearTimeout(this.schedulerTimer)
       this.schedulerTimer = null
     }
+    this.clearRhythmOnsets()
   }
 
   private scheduler(): void {
@@ -95,6 +116,16 @@ export class TransportEngine {
       this.notifyBeat(this.nextBeatTime, this.currentBeatIndex)
       this.nextBeatTime += this.getSecondsPerBeat()
       this.currentBeatIndex++
+    }
+
+    if (this.rhythmSoundVolume > 0) {
+      for (const onset of this.rhythmOnsets) {
+        if (!onset.scheduled && onset.timeSec < currentTime + this.lookahead && onset.timeSec > currentTime - 0.1) {
+          this.scheduleRhythmSound(onset.timeSec)
+          onset.scheduled = true
+          this.scheduledOnsetTimes.add(onset.timeSec)
+        }
+      }
     }
 
     this.schedulerTimer = window.setTimeout(
@@ -125,6 +156,36 @@ export class TransportEngine {
 
     osc.start(time)
     osc.stop(time + this.clickDuration)
+  }
+
+  private scheduleRhythmSound(time: number): void {
+    if (!this.audioContext || this.rhythmSoundVolume <= 0) return
+
+    // Clean sidestick/clave sound - simple and punchy
+    const osc = this.audioContext.createOscillator()
+    const gain = this.audioContext.createGain()
+    const filter = this.audioContext.createBiquadFilter()
+
+    // Pure sine at a wooden "tok" frequency
+    osc.type = "sine"
+    osc.frequency.value = 1800
+
+    // Bandpass filter for a focused, woody tone
+    filter.type = "bandpass"
+    filter.frequency.value = 1800
+    filter.Q.value = 8
+
+    // Very tight envelope - instant attack, fast decay
+    const volume = 0.5 * this.rhythmSoundVolume
+    gain.gain.setValueAtTime(volume, time)
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.025)
+
+    osc.connect(filter)
+    filter.connect(gain)
+    gain.connect(this.audioContext.destination)
+
+    osc.start(time)
+    osc.stop(time + 0.03)
   }
 
   private notifyBeat(time: number, beatIndex: number): void {

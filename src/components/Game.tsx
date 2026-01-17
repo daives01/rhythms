@@ -7,14 +7,49 @@ import { NotationRenderer } from "./NotationRenderer"
 import { TouchPad } from "./TouchPad"
 import { CalibrationScreen } from "./CalibrationScreen"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { Switch } from "@/components/ui/switch"
+import { Knob } from "@/components/ui/knob"
+import { AmpSwitch } from "@/components/ui/amp-switch"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
-import { NoteIcon } from "./icons/NoteIcon"
-import { SettingsIcon } from "./icons/SettingsIcon"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
+const SETTINGS_KEY = "rhythm-settings"
+
+interface StoredSettings {
+  bpm: number
+  difficultyValue: number
+  playAlongVolume: number
+  groupMode: boolean
+  includeTuplets: boolean
+}
+
+const DEFAULT_SETTINGS: StoredSettings = {
+  bpm: 120,
+  difficultyValue: 0,
+  playAlongVolume: 0,
+  groupMode: false,
+  includeTuplets: false,
+}
+
+function loadSettings(): StoredSettings {
+  try {
+    const stored = localStorage.getItem(SETTINGS_KEY)
+    if (!stored) return DEFAULT_SETTINGS
+    const parsed = JSON.parse(stored)
+    return { ...DEFAULT_SETTINGS, ...parsed }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+function saveSettings(settings: Partial<StoredSettings>): void {
+  try {
+    const current = loadSettings()
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
+  } catch {
+    // ignore
+  }
+}
 
 function loadLatencyOffset(): number {
   try {
@@ -22,6 +57,14 @@ function loadLatencyOffset(): number {
     return stored ? parseInt(stored, 10) : 0
   } catch {
     return 0
+  }
+}
+
+function hasCalibrated(): boolean {
+  try {
+    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
+  } catch {
+    return false
   }
 }
 
@@ -48,8 +91,16 @@ export function Game() {
   const [beatFraction, setBeatFraction] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
 
-  const [bpm, setBpm] = useState(120)
-  const [difficulty, setDifficulty] = useState<Difficulty>("medium")
+  const [bpm, setBpm] = useState(() => loadSettings().bpm)
+  const [difficultyValue, setDifficultyValue] = useState(() => loadSettings().difficultyValue)
+
+  // Map continuous value to difficulty zones
+  const getDifficultyFromValue = (v: number): Difficulty => {
+    if (v < 0.33) return "easy"
+    if (v < 0.67) return "medium"
+    return "hard"
+  }
+  const difficulty = getDifficultyFromValue(difficultyValue)
 
   const [lastResult, setLastResult] = useState<HitResult | null>(null)
   const feedbackTimeout = useRef<number | null>(null)
@@ -58,13 +109,19 @@ export function Game() {
   const [gameOverReason, setGameOverReason] = useState<"miss" | "extra" | null>(null)
   const [showCalibration, setShowCalibration] = useState(false)
   const [latencyOffset, setLatencyOffset] = useState(loadLatencyOffset)
-  const [groupMode, setGroupMode] = useState(false)
-  const [includeTuplets, setIncludeTuplets] = useState(false)
+  const [isCalibrated, setIsCalibrated] = useState(hasCalibrated)
+  const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
+  const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
+  const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
   const animationFrame = useRef<number | null>(null)
 
   useEffect(() => {
     judgeEngine.setLatencyOffset(latencyOffset)
   }, [latencyOffset])
+
+  useEffect(() => {
+    saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
+  }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
 
   const showFeedback = (result: HitResult) => {
     if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current)
@@ -101,6 +158,9 @@ export function Game() {
     judgeEngine.setTolerance(toleranceMap[difficulty])
     judgeEngine.setBpm(bpm)
 
+    // Set play-along volume
+    transportEngine.setRhythmSoundVolume(playAlongVolume)
+
     setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
     setGameOverReason(null)
     setGameState("countIn")
@@ -110,6 +170,12 @@ export function Game() {
 
     const initialBars = rhythmBuffer.initialize()
     setBars(initialBars)
+
+    // Pass initial onsets to transport engine for sound playback
+    if (playAlongVolume > 0) {
+      const allOnsets = initialBars.flatMap((bar) => bar.onsets)
+      transportEngine.setRhythmOnsets(allOnsets)
+    }
   }
 
   const stopGame = () => {
@@ -175,7 +241,13 @@ export function Game() {
         }))
 
         if (rhythmBuffer.advanceIfNeeded(pos.bar)) {
-          setBars([...rhythmBuffer.getBars()])
+          const newBars = [...rhythmBuffer.getBars()]
+          setBars(newBars)
+          // Update onsets for rhythm sound playback
+          if (playAlongVolume > 0) {
+            const allOnsets = newBars.flatMap((bar) => bar.onsets)
+            transportEngine.setRhythmOnsets(allOnsets)
+          }
         }
       }
 
@@ -239,13 +311,12 @@ export function Game() {
     }
   }, [gameState])
 
-  const difficulties: Difficulty[] = ["easy", "medium", "hard"]
   const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
-  const difficultyIndex = difficulties.indexOf(difficulty)
 
   const handleCalibrationComplete = (offset: number) => {
     setLatencyOffset(offset)
     saveLatencyOffset(offset)
+    setIsCalibrated(true)
     setShowCalibration(false)
   }
 
@@ -258,90 +329,6 @@ export function Game() {
         WebkitUserSelect: "none",
       }}
     >
-      <header className="relative z-10 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary-deep flex items-center justify-center">
-              <NoteIcon className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <h1 className="text-lg font-display font-semibold tracking-tight">
-              Rhythm
-            </h1>
-          </div>
-
-          {gameState === "running" ? (
-            <div className="flex items-center gap-5">
-              {/* Bar counter with progress ring */}
-              <div className="flex items-center gap-3">
-                <div className="relative w-10 h-10 flex items-center justify-center">
-                  {/* Background ring */}
-                  <svg className="absolute inset-0 w-full h-full -rotate-90">
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-border"
-                    />
-                    <circle
-                      cx="20"
-                      cy="20"
-                      r="16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      className="text-primary"
-                      style={{
-                        strokeDasharray: `${2 * Math.PI * 16}`,
-                        strokeDashoffset: `${2 * Math.PI * 16 * (1 - (currentBeat + beatFraction) / 4)}`,
-                        transition: "stroke-dashoffset 0.05s linear",
-                        filter: "drop-shadow(0 0 4px rgba(245,158,11,0.5))",
-                      }}
-                    />
-                  </svg>
-                  <span
-                    className="text-lg font-bold tabular-nums text-primary relative z-10"
-                    key={score.barsSurvived}
-                  >
-                    {score.barsSurvived + 1}
-                  </span>
-                </div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium hidden md:block">
-                  Bar
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="w-px h-8 bg-border/50" />
-
-              {/* Hits counter */}
-              <div className="flex items-center gap-2">
-                <span
-                  className="text-2xl font-bold tabular-nums text-foreground"
-                  key={score.totalHits}
-                >
-                  {score.totalHits}
-                </span>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">
-                  Hits
-                </div>
-              </div>
-            </div>
-          ) : gameState === "idle" && !showCalibration ? (
-            <button
-              onClick={() => setShowCalibration(true)}
-              className="p-2 rounded-lg hover:bg-muted transition-colors"
-              aria-label="Settings"
-            >
-              <SettingsIcon className="w-5 h-5 text-muted-foreground" />
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       <main className="flex-1 flex flex-col relative">
         {showCalibration && (
           <CalibrationScreen
@@ -358,52 +345,80 @@ export function Game() {
               <h2 className="text-5xl md:text-6xl font-display font-bold mb-4 tracking-tight">
                 <span className="text-gradient">Rhythms</span>
               </h2>
-              <p className="text-muted-foreground text-lg leading-relaxed">
-                Tap to the beat. First mistake ends the run.
-              </p>
             </div>
 
-            {/* Settings Card */}
+            {/* Amp-style Settings Panel */}
             <div
-              className="w-full rounded-3xl border border-border/40 overflow-hidden mb-8 animate-fade-in-up opacity-0"
+              className="w-full rounded-2xl overflow-hidden mb-8 animate-fade-in-up opacity-0"
               style={{
                 animationDelay: "0.2s",
-                background: "linear-gradient(to bottom, rgba(28,25,23,0.6), rgba(12,10,9,0.8))",
-                boxShadow: "0 4px 40px -10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)",
+                background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.5)",
+                border: "1px solid rgba(60,60,60,0.5)",
               }}
             >
-              <div className="p-6 md:p-8 space-y-8">
-                <Slider
-                  label="Tempo"
-                  value={bpm}
-                  onValueChange={setBpm}
-                  min={60}
-                  max={180}
-                  step={5}
-                  valueFormatter={(v) => `${v} BPM`}
-                />
+              {/* Metal faceplate texture */}
+              <div
+                className="relative"
+                style={{
+                  background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
+                }}
+              >
+                {/* Screws in corners */}
+                <div className="absolute top-3 left-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
+                <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
+                <div className="absolute bottom-3 left-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
+                <div className="absolute bottom-3 right-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
 
-                <Slider
-                  label="Difficulty"
-                  value={difficultyIndex}
-                  onValueChange={(v) => setDifficulty(difficulties[v])}
-                  min={0}
-                  max={2}
-                  step={1}
-                  valueFormatter={(v) => difficultyLabels[difficulties[v]]}
-                />
+                <div className="p-6 md:p-8">
+                  {/* Knobs row */}
+                  <div className="flex justify-center gap-8 md:gap-12 mb-8">
+                    <Knob
+                      label="Tempo"
+                      value={bpm}
+                      onValueChange={setBpm}
+                      min={60}
+                      max={180}
+                      step={5}
+                      valueFormatter={(v) => `${v}`}
+                    />
 
-                <Switch
-                  label="Group Mode"
-                  checked={groupMode}
-                  onCheckedChange={setGroupMode}
-                />
+                    <Knob
+                      label="Difficulty"
+                      value={difficultyValue}
+                      onValueChange={setDifficultyValue}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      valueFormatter={() => difficultyLabels[difficulty]}
+                    />
 
-                <Switch
-                  label="Tuplets"
-                  checked={includeTuplets}
-                  onCheckedChange={setIncludeTuplets}
-                />
+                    <Knob
+                      label="Play Along"
+                      value={playAlongVolume}
+                      onValueChange={setPlayAlongVolume}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
+                    />
+                  </div>
+
+                  {/* Switches row */}
+                  <div className="flex justify-center gap-10 md:gap-16 pt-4 border-t border-zinc-800/50">
+                    <AmpSwitch
+                      label="Practice"
+                      checked={groupMode}
+                      onCheckedChange={setGroupMode}
+                    />
+
+                    <AmpSwitch
+                      label="Tuplets"
+                      checked={includeTuplets}
+                      onCheckedChange={setIncludeTuplets}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -427,9 +442,18 @@ export function Game() {
               style={{ animationDelay: "0.4s" }}
             >
               {groupMode
-                ? "Notes highlight as you play — press Escape or tap Stop to end"
-                : "Use any key or tap to play — try two hands for fast rhythms"}
+                ? "Practice mode — no game over, stop when ready"
+                : "Tap on mobile, any key on desktop"}
             </p>
+
+            {/* Calibrate button */}
+            <button
+              onClick={() => setShowCalibration(true)}
+              className="mt-4 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.5s" }}
+            >
+              {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
+            </button>
           </div>
         )}
 
@@ -491,7 +515,7 @@ export function Game() {
         )}
 
         {gameState === "running" && (
-          <div className="flex-1 flex flex-col p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
+          <div className="flex-1 flex flex-col justify-center p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
             {/* Notation Panel */}
             <div
               className={cn(
@@ -510,9 +534,6 @@ export function Game() {
                 currentTime={currentTime}
               />
             </div>
-
-            {/* Flexible spacer */}
-            <div className="flex-1 min-h-4" />
 
             {/* Touch Pad or Stop Button */}
             <div className="max-w-xl mx-auto w-full pb-4 md:pb-6">

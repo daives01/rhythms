@@ -536,6 +536,42 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
         const fill = el.getAttribute("fill")
         if (fill !== "none") el.setAttribute("fill", color)
       })
+
+      // Fix tuplet bracket spacing - VexFlow adds too much left padding
+      svg.querySelectorAll(".vf-tuplet").forEach((tupletGroup) => {
+        const rects = tupletGroup.querySelectorAll("rect")
+        // VexFlow draws: left horiz, right horiz, left vert, right vert
+        // We need to shift the left side elements to the right
+        const shiftAmount = 8
+        const centerShift = shiftAmount / 2
+        if (rects.length >= 3) {
+          // Left horizontal line - shift x, reduce width by half (gap moves with center)
+          const leftHoriz = rects[0]
+          const x = parseFloat(leftHoriz.getAttribute("x") || "0")
+          const width = parseFloat(leftHoriz.getAttribute("width") || "0")
+          leftHoriz.setAttribute("x", String(x + shiftAmount))
+          leftHoriz.setAttribute("width", String(Math.max(0, width - centerShift)))
+
+          // Right horizontal line - shift x to move the gap, reduce width to match
+          const rightHoriz = rects[1]
+          const rightX = parseFloat(rightHoriz.getAttribute("x") || "0")
+          const rightWidth = parseFloat(rightHoriz.getAttribute("width") || "0")
+          rightHoriz.setAttribute("x", String(rightX + centerShift))
+          rightHoriz.setAttribute("width", String(Math.max(0, rightWidth - centerShift)))
+
+          // Left vertical line - shift x
+          const leftVert = rects[2]
+          const vertX = parseFloat(leftVert.getAttribute("x") || "0")
+          leftVert.setAttribute("x", String(vertX + shiftAmount))
+        }
+
+        // Shift the number to re-center it (half the bracket shift)
+        const text = tupletGroup.querySelector("text")
+        if (text) {
+          const textX = parseFloat(text.getAttribute("x") || "0")
+          text.setAttribute("x", String(textX + centerShift))
+        }
+      })
     }
 
   }, [bars, dimensions, barWidths, barPositions, totalWidth])
