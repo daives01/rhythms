@@ -5,6 +5,7 @@ import { transportEngine } from "@/engines/TransportEngine"
 import { rhythmBuffer } from "@/engines/RhythmEngine"
 import { judgeEngine } from "@/engines/JudgeEngine"
 import { NotationRenderer } from "@/components/NotationRenderer"
+import { PanelContainer } from "@/components/ui/panel-container"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
 import { decodeChallenge } from "@/lib/random"
@@ -81,7 +82,7 @@ export function PlayPage() {
   const feedbackTimeout = useRef<number | null>(null)
   const animationFrame = useRef<number | null>(null)
   const hasStarted = useRef(false)
-  const scoreRef = useRef(score)
+  const scoreRef = useRef<GameScore>(score)
 
   const latencyOffset = loadLatencyOffset()
   const playAlongVolume = loadPlayAlongVolume()
@@ -92,7 +93,9 @@ export function PlayPage() {
   const gameTuplets = challengeData?.tuplets ?? false
 
   // Keep scoreRef in sync with score state
-  scoreRef.current = score
+  useEffect(() => {
+    scoreRef.current = score
+  }, [score])
 
   const showFeedback = (result: HitResult) => {
     if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current)
@@ -345,23 +348,22 @@ export function PlayPage() {
           )}
 
           {/* Notation Panel */}
-          <div
+          <PanelContainer
             className={cn(
-              "w-full max-w-4xl p-3 landscape:p-2 border transition-opacity duration-300",
-              "bg-card",
-              "border-border",
-              "pointer-events-none",
+              "w-full max-w-4xl transition-opacity duration-300 pointer-events-none",
               phase === "countIn" && "opacity-30"
             )}
           >
-            <NotationRenderer
-              bars={bars}
-              currentBar={currentBar}
-              currentBeat={currentBeat}
-              beatFraction={beatFraction}
-              currentTime={currentTime}
-            />
-          </div>
+            <div className="p-4 landscape:p-3">
+              <NotationRenderer
+                bars={bars}
+                currentBar={currentBar}
+                currentBeat={currentBeat}
+                beatFraction={beatFraction}
+                currentTime={currentTime}
+              />
+            </div>
+          </PanelContainer>
 
           {/* Feedback / Stop */}
           <div className="flex items-center justify-center h-8">

@@ -3,10 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { Button } from "@/components/ui/button"
-import { SliderPrimitive } from "@/components/ui/slider-primitive"
+import { Slider } from "@/components/ui/slider"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
+import { PanelContainer } from "@/components/ui/panel-container"
 import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
@@ -170,62 +171,58 @@ export function Game() {
         WebkitUserSelect: "none",
       }}
     >
-      <main className="flex-1 flex flex-col relative overflow-auto">
+      <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         {/* Challenge Landing Page */}
         {showChallengeLanding && challengeData && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-6 landscape:py-3 gap-6 landscape:gap-8 max-w-lg landscape:max-w-4xl mx-auto w-full">
-            {/* Left column: Title + meta */}
-            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 gap-3">
-              <div className="text-center landscape:text-left animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-                <h2 className="text-2xl landscape:text-xl font-display font-bold tracking-tight mb-1 text-foreground">
-                  Challenge
-                </h2>
-                <p className="text-muted-foreground text-xs">
-                  Someone sent you a rhythm challenge
-                </p>
-              </div>
-
-              {/* Challenge specs */}
-              <div 
-                className="flex items-center gap-4 text-xs text-muted-foreground animate-fade-in-up opacity-0 border border-border bg-muted px-4 py-2" 
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full">
+            {/* Left column: Title */}
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+              <h2
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
+                style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              >
+                challenge
+              </h2>
+              <p
+                className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
                 style={{ animationDelay: "0.15s" }}
               >
-                <span className="font-medium tabular-nums">{challengeData.bpm} BPM</span>
-                <span className="w-px h-3 bg-border" />
-                <span className="font-medium">{difficultyLabels[challengeDifficulty]}</span>
+                Someone sent you a rhythm challenge
+              </p>
+            </div>
+
+            {/* Right column: Challenge panel */}
+            <PanelContainer
+              className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.2s" }}
+            >
+              {/* Challenge specs */}
+              <div className="p-6 flex items-center justify-center gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-display font-bold tabular-nums text-foreground">{challengeData.bpm}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">BPM</div>
+                </div>
+                <div className="w-px h-8 bg-border" />
+                <div className="text-center">
+                  <div className="text-2xl font-display font-bold text-foreground">{difficultyLabels[challengeDifficulty]}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Level</div>
+                </div>
                 {challengeData.tuplets && (
                   <>
-                    <span className="w-px h-3 bg-border" />
-                    <span className="font-medium">Tuplets</span>
+                    <div className="w-px h-8 bg-border" />
+                    <div className="text-center">
+                      <div className="text-2xl font-display font-bold text-foreground">On</div>
+                      <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Tuplets</div>
+                    </div>
                   </>
                 )}
               </div>
 
-              {/* CTA - landscape only */}
-              <div className="hidden landscape:flex flex-col items-start gap-2 mt-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
-                <Button
-                  size="lg"
-                  onClick={() => startGame(challengeData)}
-                  className="px-10 font-semibold"
-                >
-                  Start Challenge
-                </Button>
-                <button
-                  onClick={() => setSearchParams({})}
-                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-                >
-                  Go to menu instead
-                </button>
-              </div>
-            </div>
+              <div className="h-px bg-border w-full" />
 
-            {/* Right column: Settings panel */}
-            <div
-              className="w-full landscape:w-80 landscape:shrink-0 overflow-hidden animate-fade-in-up opacity-0 border border-border bg-muted"
-              style={{ animationDelay: "0.2s" }}
-            >
-              <div className="p-4 landscape:p-3 flex flex-col gap-3">
-                <SliderPrimitive
+              {/* Settings */}
+              <div className="p-6">
+                <Slider
                   value={playAlongVolume}
                   onValueChange={setPlayAlongVolume}
                   min={0}
@@ -235,32 +232,34 @@ export function Game() {
                   color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
                   units={["0%", "50%", "100%"]}
                 />
-                <div className="pt-2 border-t border-border">
+              </div>
+
+              <div className="h-px bg-border w-full" />
+
+              {/* Controls row */}
+              <div className="flex items-stretch">
+                <div className="flex-1 p-6 flex items-start justify-center">
                   <AmpSwitch
                     label="Practice"
                     checked={groupMode}
                     onCheckedChange={setGroupMode}
                   />
                 </div>
+                <div className="w-px bg-border" />
+                <div className="p-6 flex items-start justify-center">
+                  <PlayButton onClick={() => startGame(challengeData)} />
+                </div>
               </div>
-            </div>
+            </PanelContainer>
 
-            {/* CTA - portrait only */}
-            <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
-              <Button
-                size="lg"
-                onClick={() => startGame(challengeData)}
-                className="px-10 font-semibold"
-              >
-                Start Challenge
-              </Button>
-              <button
-                onClick={() => setSearchParams({})}
-                className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-              >
-                Go to menu instead
-              </button>
-            </div>
+            {/* Go to menu link */}
+            <button
+              onClick={() => setSearchParams({})}
+              className="absolute bottom-4 text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.4s" }}
+            >
+              Go to menu instead
+            </button>
           </div>
         )}
 
@@ -278,13 +277,13 @@ export function Game() {
             </div>
 
             {/* Right column: Mixer panel */}
-            <div
-              className="w-full landscape:w-[480px] landscape:shrink-0 overflow-hidden animate-fade-in-up opacity-0 border border-border bg-muted"
+            <PanelContainer
+              className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up opacity-0"
               style={{ animationDelay: "0.2s" }}
             >
               {/* Fader controls */}
-              <div className="p-4 landscape:p-3 flex flex-col gap-3">
-                <SliderPrimitive
+              <div className="p-6 flex flex-col gap-3">
+                <Slider
                   value={bpm}
                   onValueChange={setBpm}
                   min={60}
@@ -294,7 +293,7 @@ export function Game() {
                   color={calculateBPMColor(bpm)}
                   units={["60", "120", "180"]}
                 />
-                <SliderPrimitive
+                <Slider
                   value={difficultyValue}
                   onValueChange={setDifficultyValue}
                   min={0}
@@ -305,7 +304,7 @@ export function Game() {
                   units={["EASY", "NORMAL", "HARD"]}
                   snapPoints={[0, 0.5, 1]}
                 />
-                <SliderPrimitive
+                <Slider
                   value={playAlongVolume}
                   onValueChange={setPlayAlongVolume}
                   min={0}
@@ -323,7 +322,7 @@ export function Game() {
               {/* Controls row */}
               <div className="flex items-stretch">
                 {/* Left group: switches + calibrate */}
-                <div className="flex-1 p-4 landscape:p-3 flex items-start justify-evenly">
+                <div className="flex-1 p-6 flex items-start justify-evenly">
                   <AmpSwitch
                     label="Practice"
                     checked={groupMode}
@@ -342,15 +341,15 @@ export function Game() {
                   />
                 </div>
 
-                {/* Vertical divider - full height */}
+                {/* Vertical divider */}
                 <div className="w-px bg-border" />
 
                 {/* Right group: play */}
-                <div className="p-4 landscape:p-3 flex items-start justify-center">
+                <div className="p-6 flex items-start justify-center">
                   <PlayButton onClick={() => startGame()} />
                 </div>
               </div>
-            </div>
+            </PanelContainer>
           </div>
         )}
 

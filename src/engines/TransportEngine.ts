@@ -1,4 +1,4 @@
-export type TransportCallback = (beat: number, bar: number, isCountIn: boolean) => void
+type TransportCallback = (beat: number, bar: number, isCountIn: boolean) => void
 
 export class TransportEngine {
   private audioContext: AudioContext | null = null

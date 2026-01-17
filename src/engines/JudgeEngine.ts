@@ -2,8 +2,8 @@ import type { RuntimeOnset, HitResult } from "@/types"
 import { transportEngine } from "./TransportEngine"
 import { rhythmBuffer } from "./RhythmEngine"
 
-export type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timingError: number) => void
-export type GameOverCallback = (reason: "miss" | "extra") => void
+type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timingError: number) => void
+type GameOverCallback = (reason: "miss" | "extra") => void
 
 export class JudgeEngine {
   private baseToleranceMs: number = 100
@@ -47,16 +47,8 @@ export class JudgeEngine {
     return Math.min(tolerance * 2, maxEarly)
   }
 
-  getTolerance(): number {
-    return this.getScaledTolerance()
-  }
-
   setLatencyOffset(offsetMs: number): void {
     this.latencyOffsetMs = offsetMs
-  }
-
-  getLatencyOffset(): number {
-    return this.latencyOffsetMs
   }
 
   onJudge(callback: JudgeCallback): () => void {
@@ -72,7 +64,6 @@ export class JudgeEngine {
   start(): void {
     this.isActive = true
     this.lastHitTime = 0
-    console.log(`[Judge] Started - BPM=${this.bpm}, baseTolerance=${this.baseToleranceMs}ms, scaledTolerance=${this.getScaledTolerance().toFixed(0)}ms, earlyWindow=${this.getEarlyWindow().toFixed(0)}ms, latencyOffset=${this.latencyOffsetMs}ms`)
     this.startMissCheck()
   }
 
@@ -93,7 +84,6 @@ export class JudgeEngine {
     // Debounce to prevent double-fires from touch/pointer events
     // 50ms is short enough to allow fast 16th notes at high BPM
     if ((hitTime - this.lastHitTime) * 1000 < this.inputDebounceMs) {
-      console.log(`[Judge] Debounced tap (${((hitTime - this.lastHitTime) * 1000).toFixed(1)}ms since last)`)
       return
     }
     this.lastHitTime = hitTime
@@ -102,7 +92,6 @@ export class JudgeEngine {
     const nextOnset = unhitOnsets[0]
 
     if (!nextOnset) {
-      console.log(`[Judge] ✗ EXTRA NOTE - no unhit onsets remaining`)
       this.notifyJudge("miss", null, 0)
       this.triggerGameOver("extra")
       return
@@ -112,26 +101,21 @@ export class JudgeEngine {
     const earlyWindowMs = this.getEarlyWindow()
     const deltaMs = (hitTime - nextOnset.timeSec) * 1000
 
-    console.log(`[Judge] Tap: delta=${deltaMs.toFixed(1)}ms, window=[-${earlyWindowMs.toFixed(0)}, +${toleranceMs.toFixed(0)}]ms, onset=${nextOnset.id} @ ${nextOnset.timeSec.toFixed(3)}s`)
-
-    // Within the hit window - register the hit
+    // Within hit window - register as hit
     if (deltaMs >= -earlyWindowMs && deltaMs <= toleranceMs) {
       rhythmBuffer.markHit(nextOnset.id)
       this.notifyJudge("hit", nextOnset, deltaMs)
-      console.log(`[Judge] ✓ HIT (${deltaMs > 0 ? 'late' : 'early'} by ${Math.abs(deltaMs).toFixed(1)}ms)`)
       return
     }
 
     // Too early (before early window) - extra note
     if (deltaMs < -earlyWindowMs) {
-      console.log(`[Judge] ✗ EXTRA NOTE - tap too early (${Math.abs(deltaMs).toFixed(1)}ms before onset, window is ${earlyWindowMs.toFixed(0)}ms)`)
       this.notifyJudge("miss", null, deltaMs)
       this.triggerGameOver("extra")
       return
     }
 
-    // Too late (after tolerance) - log but let miss check handle game over
-    console.log(`[Judge] Tap too late (${deltaMs.toFixed(1)}ms after onset, tolerance is ${toleranceMs.toFixed(0)}ms)`)
+    // Too late (after tolerance) - let miss check handle game over
   }
 
   private startMissCheck(): void {

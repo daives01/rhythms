@@ -1,7 +1,7 @@
 import { useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
-interface SliderPrimitiveProps {
+interface SliderProps {
   value: number
   onValueChange: (value: number) => void
   color?: string
@@ -13,7 +13,7 @@ interface SliderPrimitiveProps {
   snapPoints?: number[]
 }
 
-export function SliderPrimitive({
+export function Slider({
   value,
   onValueChange,
   color,
@@ -23,7 +23,7 @@ export function SliderPrimitive({
   max = 100,
   step = 1,
   snapPoints,
-}: SliderPrimitiveProps) {
+}: SliderProps) {
   const percentage = ((value - min) / (max - min)) * 100
   const isActive = value > 0
   const ledColor = color || "rgb(52, 211, 153)"
@@ -34,28 +34,19 @@ export function SliderPrimitive({
 
   const handleChange = (newValue: number) => {
     if (!isSnappping.current) {
-      console.log('onChange:', newValue)
       onValueChange(newValue)
-    } else {
-      console.log('onChange skipped (snapping)')
     }
   }
 
   const handleRelease = () => {
-    console.log('handleRelease called')
     if (!inputRef.current || !snapPoints || snapPoints.length === 0) {
-      console.log('skipping snap - no ref or snapPoints')
       return
     }
     
     const currentValue = Number(inputRef.current.value)
-    console.log('currentValue:', currentValue)
-    console.log('snapPoints:', snapPoints)
-    
-    const nearest = snapPoints.reduce((prev, curr) => 
+    const nearest = snapPoints.reduce((prev, curr) =>
       Math.abs(curr - currentValue) < Math.abs(prev - currentValue) ? curr : prev
     )
-    console.log('nearest snap point:', nearest)
     
     setIsAnimating(true)
     isSnappping.current = true
@@ -71,8 +62,8 @@ export function SliderPrimitive({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-3 relative">
-        <div className="flex items-center gap-3 w-16 shrink-0 relative z-10">
+      <div className="flex items-start gap-3 relative">
+        <div className="flex items-center gap-3 w-16 shrink-0 relative z-10 h-8">
           <div 
             className="w-2.5 h-2.5 transition-all duration-200 border border-zinc-700 shrink-0"
             style={{ 
@@ -115,7 +106,19 @@ export function SliderPrimitive({
                   style={{
                     boxShadow: "0 1px 2px rgba(0,0,0,0.5)"
                   }}
-                />
+                >
+                  <div className="absolute inset-x-0 top-1 bottom-1 flex flex-col justify-center gap-0.5">
+                    {[...Array(2)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-px mx-1"
+                        style={{
+                          background: "linear-gradient(90deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.1) 100%)",
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -142,13 +145,13 @@ export function SliderPrimitive({
                 "[&::-moz-range-thumb]:border-none",
                 "[&::-moz-range-thumb]:cursor-ew-resize",
                 "[&::-webkit-slider-runnable-track]:bg-transparent",
-              "[&::-moz-range-track]:bg-transparent"
-            )}
-          />
+                "[&::-moz-range-track]:bg-transparent"
+              )}
+            />
           </div>
 
           {units && units.length === 3 && (
-            <div className="relative h-5 w-full">
+            <div className="relative h-5">
               {Array.from({ length: 17 }).map((_, index) => {
                 const position = index / 16
                 const isLong = index % 8 === 0

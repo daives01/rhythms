@@ -6,5 +6,5 @@ interface PlayButtonProps {
 }
 
 export function PlayButton({ onClick, className }: PlayButtonProps) {
-  return <GameButton label="Play" onClick={onClick} variant="green" className={className} />
+  return <GameButton label="Play" onClick={onClick} className={className} />
 }

@@ -30,22 +30,7 @@ function pickRandomPattern(patterns: BeatPattern[], rng: SeededRandom, targetLen
   return rng.pick(pool)
 }
 
-// Calculate "complexity" of a bar based on number of onsets and syncopation
-export function calculateBarComplexity(bar: Bar): number {
-  const numOnsets = bar.onsets.length
-  let syncopation = 0
-
-  for (const onset of bar.onsets) {
-    // Offbeat sixteenths (n=1 or n=3) are more complex
-    if (onset.n % 2 === 1) syncopation++
-    // Offbeat eighths (n=2) are slightly less complex
-    else if (onset.n === 2) syncopation += 0.5
-  }
-
-  return numOnsets + syncopation
-}
-
-export function generateBar(difficulty: Difficulty, rng: SeededRandom, isFirstBar: boolean = false, includeTuplets: boolean = false): Bar {
+function generateBar(difficulty: Difficulty, rng: SeededRandom, isFirstBar: boolean = false, includeTuplets: boolean = false): Bar {
   const patterns = getPatternsForDifficulty(difficulty, includeTuplets)
   const onsets: Onset[] = []
 
@@ -118,7 +103,7 @@ export function generateBar(difficulty: Difficulty, rng: SeededRandom, isFirstBa
   }
 }
 
-export function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
+function toRuntimeBar(bar: Bar, barIndex: number): RuntimeBar {
   const onsets: RuntimeOnset[] = bar.onsets.map((onset) => ({
     id: generateOnsetId(),
     timeSec: transportEngine.positionToTime(barIndex, onset.beatIndex, onset.n, onset.d),

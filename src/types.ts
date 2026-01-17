@@ -32,8 +32,6 @@ export interface RuntimeBar {
   width?: number  // calculated width for variable-width rendering
 }
 
-export type GameState = "idle" | "countIn" | "running" | "gameOver"
-
 export interface GameScore {
   barsSurvived: number
   beatsSurvived: number

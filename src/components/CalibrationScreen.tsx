@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { transportEngine } from "@/engines/TransportEngine"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { Button } from "@/components/ui/button"
+import { PanelContainer } from "@/components/ui/panel-container"
 import { TouchPad } from "./TouchPad"
 
 interface CalibrationScreenProps {
@@ -152,43 +153,59 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start landscape:justify-center overflow-y-auto p-4 landscape:px-6 landscape:py-3 pt-safe pb-safe max-w-lg landscape:max-w-3xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-start landscape:justify-center overflow-y-auto p-4 landscape:px-8 landscape:py-3 pt-safe pb-safe max-w-lg landscape:max-w-5xl mx-auto w-full">
       {phase === "intro" && (
-        <div className="flex-1 flex flex-col items-center justify-center landscape:flex-row landscape:gap-8 w-full">
-          <div className="landscape:flex-1 landscape:max-w-sm">
-            <div className="text-center landscape:text-left mb-6 landscape:mb-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-xl font-display font-bold mb-2 text-foreground">
-                Calibrate Latency
-              </h2>
-              <p className="text-muted-foreground text-xs">
-                Tap along to {REQUIRED_TAPS} beats. We'll measure your timing to compensate for latency.
-              </p>
-            </div>
-
-            <div
-              className="w-full border border-border bg-muted p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.2s" }}
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center gap-6 landscape:gap-12 w-full">
+          {/* Left: Title */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+            <h2
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
             >
-              <div className="text-center landscape:text-left">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Current Offset</div>
-                <div className="text-xl font-bold tabular-nums text-foreground">
-                  {currentOffset > 0 ? "+" : ""}{currentOffset} ms
-                </div>
+              calibrate
+            </h2>
+            <p
+              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.15s" }}
+            >
+              Measure your device's audio latency
+            </p>
+          </div>
+
+          {/* Right: Panel */}
+          <PanelContainer
+            className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
+            style={{ animationDelay: "0.2s" }}
+          >
+            {/* Current offset */}
+            <div className="p-6 text-center">
+              <div className="text-4xl font-display font-bold tabular-nums text-foreground">
+                {currentOffset > 0 ? "+" : ""}{currentOffset} ms
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mt-1">
+                Current Offset
               </div>
             </div>
-          </div>
 
-          <div
-            className="w-full landscape:flex-1 landscape:max-w-xs space-y-2 animate-fade-in-up opacity-0"
-            style={{ animationDelay: "0.3s" }}
-          >
-            <Button size="lg" onClick={startCalibration} className="w-full">
-              Start Calibration
-            </Button>
-            <Button variant="outline" size="default" onClick={onCancel} className="w-full">
-              Cancel
-            </Button>
-          </div>
+            <div className="h-px bg-border w-full" />
+
+            {/* Instructions */}
+            <div className="p-4 text-center text-xs text-muted-foreground/60">
+              Tap along to {REQUIRED_TAPS} beats to measure timing
+            </div>
+
+            <div className="h-px bg-border w-full" />
+
+            {/* Actions */}
+            <div className="p-6 flex flex-col gap-2">
+              <Button size="lg" onClick={startCalibration} className="w-full">
+                Start Calibration
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onCancel} className="w-full">
+                Cancel
+              </Button>
+            </div>
+          </PanelContainer>
         </div>
       )}
 
@@ -234,49 +251,62 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
       )}
 
       {phase === "done" && (
-        <div className="flex-1 flex flex-col items-center justify-center landscape:flex-row landscape:gap-8 w-full">
-          <div className="landscape:flex-1 landscape:max-w-sm">
-            <div className="text-center landscape:text-left mb-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-xl font-display font-bold text-foreground">
-                Calibration Complete
-              </h2>
-            </div>
-
-            <div
-              className="w-full border border-border bg-muted p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.2s" }}
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center gap-6 landscape:gap-12 w-full">
+          {/* Left: Title */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+            <h2
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
             >
-              <div className="grid grid-cols-2 gap-4 text-center landscape:text-left">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Previous</div>
-                  <div className="text-lg font-bold tabular-nums text-muted-foreground">
-                    {currentOffset > 0 ? "+" : ""}{currentOffset} ms
-                  </div>
+              complete
+            </h2>
+            <p
+              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.15s" }}
+            >
+              Calibration finished
+            </p>
+          </div>
+
+          {/* Right: Panel */}
+          <PanelContainer
+            className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
+            style={{ animationDelay: "0.2s" }}
+          >
+            {/* Offset comparison */}
+            <div className="p-6 flex items-center justify-center gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-display font-bold tabular-nums text-muted-foreground/60">
+                  {currentOffset > 0 ? "+" : ""}{currentOffset} ms
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">New Offset</div>
-                  <div className="text-lg font-bold tabular-nums text-emerald-400">
-                    {calculatedOffset !== null && (calculatedOffset > 0 ? "+" : "")}{calculatedOffset} ms
-                  </div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Previous</div>
+              </div>
+              <div className="text-2xl text-muted-foreground/30">→</div>
+              <div className="text-center">
+                <div className="text-2xl font-display font-bold tabular-nums text-emerald-400">
+                  {calculatedOffset !== null && (calculatedOffset > 0 ? "+" : "")}{calculatedOffset} ms
                 </div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">New</div>
               </div>
             </div>
-          </div>
 
-          <div
-            className="w-full landscape:flex-1 landscape:max-w-xs space-y-2 animate-fade-in-up opacity-0"
-            style={{ animationDelay: "0.3s" }}
-          >
-            <Button size="lg" onClick={handleAccept} className="w-full">
-              Apply Offset
-            </Button>
-            <Button variant="outline" size="default" onClick={startCalibration} className="w-full">
-              Recalibrate
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onCancel} className="w-full">
-              Cancel
-            </Button>
-          </div>
+            <div className="h-px bg-border w-full" />
+
+            {/* Actions */}
+            <div className="p-6 flex flex-col gap-2">
+              <Button size="lg" onClick={handleAccept} className="w-full">
+                Apply Offset
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="default" onClick={startCalibration} className="flex-1">
+                  Recalibrate
+                </Button>
+                <Button variant="ghost" size="default" onClick={onCancel} className="flex-1">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </PanelContainer>
         </div>
       )}
     </div>

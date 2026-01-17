@@ -562,7 +562,15 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
       })
     }
 
-  }, [bars, dimensions, barWidths, barPositions, totalWidth])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bars, dimensions])
+
+
+
+
+
+
+
 
   // Apply gold highlighting based on current time
   useEffect(() => {

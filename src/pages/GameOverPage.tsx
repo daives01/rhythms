@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
 import { Button } from "@/components/ui/button"
+import { PanelContainer } from "@/components/ui/panel-container"
 import { cn } from "@/lib/utils"
 import { decodeChallenge } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
@@ -106,6 +107,19 @@ export function GameOverPage() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Play again - go back to menu
+  const handlePlayAgain = () => {
+    navigate("/")
+  }
+
+  // Retry with same challenge
+  const handleRetry = () => {
+    if (!challengeParam) return
+    // Unlock audio in click handler context (required for iOS/Safari)
+    transportEngine.unlockAudio()
+    navigate(`/play?challenge=${challengeParam}`)
+  }
+
   // Handle Enter to play again (new seed)
   useEffect(() => {
     if (!canRestart) return
@@ -117,20 +131,8 @@ export function GameOverPage() {
     }
     window.addEventListener("keydown", handleEnterRestart)
     return () => window.removeEventListener("keydown", handleEnterRestart)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRestart])
-
-  // Retry with same challenge
-  const handleRetry = () => {
-    if (!challengeParam) return
-    // Unlock audio in click handler context (required for iOS/Safari)
-    transportEngine.unlockAudio()
-    navigate(`/play?challenge=${challengeParam}`)
-  }
-
-  // Play again - go back to menu
-  const handlePlayAgain = () => {
-    navigate("/")
-  }
 
   const handleCopyLink = async () => {
     if (!challengeParam) return
@@ -162,82 +164,91 @@ export function GameOverPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
-        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-6 landscape:py-3 gap-6 landscape:gap-8 w-full max-w-lg landscape:max-w-3xl mx-auto relative">
-          {/* Left: Score section */}
-          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 relative z-10">
-            {/* Game Over Title */}
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 w-full max-w-lg landscape:max-w-5xl mx-auto relative">
+          {/* Left: Title */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h2
-              className="text-xl font-display font-bold text-foreground tracking-tight animate-fade-in-up opacity-0"
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+            >
+              game over
+            </h2>
+            <p
+              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
               style={{ animationDelay: "0.15s" }}
             >
-              Game Over
-            </h2>
-            <p className="text-muted-foreground/60 text-xs mb-4 landscape:mb-3 animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s" }}>
               {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
             </p>
-
-            {/* Score display panel */}
-            <div 
-              className="border border-border bg-muted p-4 landscape:p-3 animate-score-reveal opacity-0 w-full landscape:w-auto"
-              style={{ animationDelay: "0.3s" }}
-            >
-              <div className="text-center landscape:text-left">
-                <div className="text-4xl landscape:text-3xl font-display tabular-nums text-foreground">
-                  {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 mt-1">
-                  Final Score
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="flex items-center justify-center landscape:justify-start gap-6 mt-4 pt-3 border-t border-border">
-                {[
-                  { value: score.totalHits, label: "hits" },
-                  { value: `${score.timeSurvived.toFixed(1)}s`, label: "time" },
-                  { value: score.barsSurvived, label: "bars" },
-                ].map((stat) => (
-                  <div key={stat.label} className="text-center landscape:text-left">
-                    <div className="text-base font-bold text-foreground tabular-nums">{stat.value}</div>
-                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Settings meta */}
-              <div className="flex items-center justify-center landscape:justify-start gap-3 text-[10px] text-muted-foreground/40 mt-3 pt-3 border-t border-border">
-                <span className="tabular-nums">{bpm} BPM</span>
-                <span className="w-px h-2 bg-border" />
-                <span>{difficultyLabels[difficulty]}</span>
-                {tuplets && (
-                  <>
-                    <span className="w-px h-2 bg-border" />
-                    <span>Tuplets</span>
-                  </>
-                )}
-              </div>
-            </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex flex-col items-center landscape:items-start gap-2 w-full landscape:w-48 animate-fade-in-up opacity-0" style={{ animationDelay: "0.5s" }}>
-            {/* Main action row */}
-            <div className="flex items-center gap-2 w-full">
-              {/* Retry button */}
-              <button
-                onClick={handleRetry}
-                disabled={!canRestart || !challengeParam}
-                className={cn(
-                  "p-2.5 border border-border bg-muted hover:bg-muted/80 transition-colors",
-                  (!canRestart || !challengeParam) && "opacity-50 cursor-not-allowed"
-                )}
-                aria-label="Retry same challenge"
-                title="Retry same"
-              >
-                <RotateCcw className="w-4 h-4 text-muted-foreground" />
-              </button>
+          {/* Right: Results panel */}
+          <PanelContainer
+            className="w-full landscape:w-[400px] landscape:shrink-0 animate-score-reveal opacity-0"
+            style={{ animationDelay: "0.2s" }}
+          >
+            {/* Final score */}
+            <div className="p-6 text-center">
+              <div className="text-5xl font-display font-bold tabular-nums text-foreground">
+                {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
+              </div>
+              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mt-1">
+                Final Score
+              </div>
+            </div>
 
-              {/* Play Again button */}
+            <div className="h-px bg-border w-full" />
+
+            {/* Stats row */}
+            <div className="p-6 flex items-center justify-center gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.totalHits}</div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Hits</div>
+              </div>
+              <div className="w-px h-8 bg-border" />
+              <div className="text-center">
+                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.timeSurvived.toFixed(1)}s</div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Time</div>
+              </div>
+              <div className="w-px h-8 bg-border" />
+              <div className="text-center">
+                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.barsSurvived}</div>
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Bars</div>
+              </div>
+            </div>
+
+            <div className="h-px bg-border w-full" />
+
+            {/* Game settings */}
+            <div className="p-4 flex items-center justify-center gap-4 text-xs text-muted-foreground/60">
+              <span className="tabular-nums">{bpm} BPM</span>
+              <span className="w-px h-3 bg-border" />
+              <span>{difficultyLabels[difficulty]}</span>
+              {tuplets && (
+                <>
+                  <span className="w-px h-3 bg-border" />
+                  <span>Tuplets</span>
+                </>
+              )}
+            </div>
+
+            <div className="h-px bg-border w-full" />
+
+            {/* Actions */}
+            <div className="p-6 flex items-center gap-3">
+              {challengeParam && (
+                <button
+                  onClick={handleRetry}
+                  disabled={!canRestart}
+                  className={cn(
+                    "p-2.5 border border-border hover:bg-white/5 transition-colors",
+                    !canRestart && "opacity-50 cursor-not-allowed"
+                  )}
+                  aria-label="Retry same challenge"
+                  title="Retry same"
+                >
+                  <RotateCcw className="w-4 h-4 text-muted-foreground" />
+                </button>
+              )}
               <Button
                 size="default"
                 onClick={handlePlayAgain}
@@ -246,41 +257,33 @@ export function GameOverPage() {
               >
                 Play Again
               </Button>
+              {challengeParam && (
+                <button
+                  onClick={handleCopyLink}
+                  className="p-2.5 border border-border hover:bg-white/5 transition-colors"
+                  aria-label="Copy challenge link"
+                  title="Copy link"
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </button>
+              )}
             </div>
+          </PanelContainer>
 
-            {/* Copy link button */}
-            {challengeParam && (
-              <button
-                onClick={handleCopyLink}
-                className={cn(
-                  "flex items-center justify-center gap-2 w-full py-2 px-3",
-                  "border border-border bg-muted hover:bg-muted/80 transition-colors",
-                  "text-xs text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Copy challenge link</span>
-                  </>
-                )}
-              </button>
-            )}
-
-            <a
-              href="https://buymeacoffee.com/danielives"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors mt-2"
-            >
-              <span>♡</span> Support the dev
-            </a>
-          </div>
+          {/* Support link */}
+          <a
+            href="https://buymeacoffee.com/danielives"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-4 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up opacity-0"
+            style={{ animationDelay: "0.4s" }}
+          >
+            ♡ Support the dev
+          </a>
         </div>
       </main>
     </div>
