@@ -4,7 +4,6 @@ import { transportEngine } from "@/engines/TransportEngine"
 import { rhythmBuffer } from "@/engines/RhythmEngine"
 import { judgeEngine } from "@/engines/JudgeEngine"
 import { NotationRenderer } from "./NotationRenderer"
-import { TouchPad } from "./TouchPad"
 import { CalibrationScreen } from "./CalibrationScreen"
 import { Button } from "@/components/ui/button"
 import { Knob } from "@/components/ui/knob"
@@ -134,6 +133,42 @@ export function Game() {
   const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
   const animationFrame = useRef<number | null>(null)
+  
+  // iOS ringer warning
+  const IOS_RINGER_KEY = "ios-ringer-dismissed"
+  const [showRingerWarning, setShowRingerWarning] = useState(() => {
+    if (typeof window === "undefined") return false
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const dismissed = localStorage.getItem(IOS_RINGER_KEY) === "true"
+    return isIOS && !dismissed
+  })
+  
+  const dismissRingerWarning = (dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      localStorage.setItem(IOS_RINGER_KEY, "true")
+    }
+    setShowRingerWarning(false)
+  }
+  
+  // Prevent accidental restart after game over
+  const [canRestart, setCanRestart] = useState(true)
+  
+  // Landscape suggestion for mobile
+  const LANDSCAPE_KEY = "landscape-dismissed"
+  const [showLandscapeTip, setShowLandscapeTip] = useState(() => {
+    if (typeof window === "undefined") return false
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    const isPortrait = window.innerHeight > window.innerWidth
+    const dismissed = localStorage.getItem(LANDSCAPE_KEY) === "true"
+    return isMobile && isPortrait && !dismissed
+  })
+  
+  const dismissLandscapeTip = (dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      localStorage.setItem(LANDSCAPE_KEY, "true")
+    }
+    setShowLandscapeTip(false)
+  }
 
   useEffect(() => {
     judgeEngine.setLatencyOffset(latencyOffset)
@@ -171,6 +206,10 @@ export function Game() {
   }, [groupMode, gameState])
 
   const startGame = async () => {
+    // CRITICAL: Unlock audio FIRST, synchronously within the click handler.
+    // This must happen before any await to satisfy iOS/Safari audio policies.
+    transportEngine.unlockAudio()
+
     transportEngine.setBpm(bpm)
     rhythmBuffer.setDifficulty(difficulty)
     rhythmBuffer.setIncludeTuplets(includeTuplets)
@@ -232,6 +271,9 @@ export function Game() {
       transportEngine.stop()
       setGameOverReason(reason)
       setGameState("gameOver")
+      setCanRestart(false)
+      // Prevent accidental restart - delay before Play Again is active
+      setTimeout(() => setCanRestart(true), 800)
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
     })
 
@@ -342,14 +384,14 @@ export function Game() {
 
   return (
     <div
-      className="min-h-screen flex flex-col overflow-hidden select-none"
+      className="min-h-dvh flex flex-col select-none"
       style={{
         touchAction: "manipulation",
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
       }}
     >
-      <main className="flex-1 flex flex-col relative">
+      <main className="flex-1 flex flex-col relative overflow-auto">
         {showCalibration && (
           <CalibrationScreen
             onComplete={handleCalibrationComplete}
@@ -359,17 +401,34 @@ export function Game() {
         )}
 
         {gameState === "idle" && !showCalibration && (
-          <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full">
-            {/* Title Section */}
-            <div className="text-center mb-12 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-5xl md:text-6xl font-display font-bold mb-4 tracking-tight">
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
+            {/* Left: Title + buttons (landscape) / Top section (portrait) */}
+            <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
+              <h2 className="text-3xl font-display font-bold tracking-tight animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
                 <span className="text-gradient">Rhythms</span>
               </h2>
+              
+              {/* Buttons - only in landscape */}
+              <div className="hidden landscape:flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
+                <Button
+                  size="lg"
+                  onClick={startGame}
+                  className="px-12 font-semibold animate-pulse-glow"
+                >
+                  Play
+                </Button>
+                <button
+                  onClick={() => setShowCalibration(true)}
+                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
+                >
+                  {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
+                </button>
+              </div>
             </div>
 
-            {/* Amp-style Settings Panel */}
+            {/* Settings Panel */}
             <div
-              className="w-full rounded-2xl overflow-hidden mb-8 animate-fade-in-up opacity-0"
+              className="w-full landscape:flex-1 landscape:max-w-md rounded-2xl overflow-hidden animate-fade-in-up opacity-0"
               style={{
                 animationDelay: "0.2s",
                 background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
@@ -377,165 +436,188 @@ export function Game() {
                 border: "1px solid rgba(60,60,60,0.5)",
               }}
             >
-              {/* Metal faceplate texture */}
-              <div
-                className="relative"
-                style={{
-                  background: "repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255,255,255,0.02) 1px, rgba(255,255,255,0.02) 2px)",
-                }}
-              >
-                {/* Screws in corners */}
-                <div className="absolute top-3 left-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
-                <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
-                <div className="absolute bottom-3 left-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
-                <div className="absolute bottom-3 right-3 w-2 h-2 rounded-full bg-zinc-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]" />
+              <div className="p-4 landscape:p-2">
+                {/* Knobs row */}
+                <div className="flex justify-center gap-5 landscape:gap-3 mb-3 landscape:mb-1">
+                  <Knob
+                    label="Tempo"
+                    value={bpm}
+                    onValueChange={setBpm}
+                    min={60}
+                    max={180}
+                    step={5}
+                    valueFormatter={(v) => `${v}`}
+                  />
+                  <Knob
+                    label="Difficulty"
+                    value={difficultyValue}
+                    onValueChange={setDifficultyValue}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    valueFormatter={() => difficultyLabels[difficulty]}
+                  />
+                  <Knob
+                    label="Play Along"
+                    value={playAlongVolume}
+                    onValueChange={setPlayAlongVolume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
+                  />
+                </div>
 
-                <div className="p-6 md:p-8">
-                  {/* Knobs row */}
-                  <div className="flex justify-center gap-8 md:gap-12 mb-8">
-                    <Knob
-                      label="Tempo"
-                      value={bpm}
-                      onValueChange={setBpm}
-                      min={60}
-                      max={180}
-                      step={5}
-                      valueFormatter={(v) => `${v}`}
-                    />
-
-                    <Knob
-                      label="Difficulty"
-                      value={difficultyValue}
-                      onValueChange={setDifficultyValue}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      valueFormatter={() => difficultyLabels[difficulty]}
-                    />
-
-                    <Knob
-                      label="Play Along"
-                      value={playAlongVolume}
-                      onValueChange={setPlayAlongVolume}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
-                    />
-                  </div>
-
-                  {/* Switches row */}
-                  <div className="flex justify-center gap-10 md:gap-16 pt-4 border-t border-zinc-800/50">
-                    <AmpSwitch
-                      label="Practice"
-                      checked={groupMode}
-                      onCheckedChange={setGroupMode}
-                    />
-
-                    <AmpSwitch
-                      label="Tuplets"
-                      checked={includeTuplets}
-                      onCheckedChange={setIncludeTuplets}
-                    />
-                  </div>
+                {/* Switches row */}
+                <div className="flex justify-center gap-8 pt-3 landscape:pt-1 border-t border-zinc-800/50">
+                  <AmpSwitch
+                    label="Practice"
+                    checked={groupMode}
+                    onCheckedChange={setGroupMode}
+                  />
+                  <AmpSwitch
+                    label="Tuplets"
+                    checked={includeTuplets}
+                    onCheckedChange={setIncludeTuplets}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Start Button */}
-            <div
-              className="w-full animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.3s" }}
-            >
+            {/* Portrait-only buttons */}
+            <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
               <Button
-                size="xl"
+                size="lg"
                 onClick={startGame}
-                className="w-full text-lg font-semibold animate-pulse-glow"
+                className="px-12 font-semibold animate-pulse-glow"
               >
                 Play
               </Button>
+              <button
+                onClick={() => setShowCalibration(true)}
+                className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
+              </button>
             </div>
-
-
-
-            {/* Calibrate button */}
-            <button
-              onClick={() => setShowCalibration(true)}
-              className="mt-4 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.5s" }}
-            >
-              {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
-            </button>
           </div>
         )}
 
-        {gameState === "countIn" && (
-          <div className="flex-1 flex flex-col justify-center p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
-            <div
-              className={cn(
-                "rounded-2xl p-4 md:p-5 border transition-all duration-150",
-                "bg-gradient-to-b from-card/90 to-card/60",
-                "border-border/40",
-                "shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_4px_20px_-4px_rgba(0,0,0,0.3)]",
-                "backdrop-blur-sm"
-              )}
-            >
-              <NotationRenderer
-                bars={bars}
-                currentBar={0}
-                currentBeat={0}
-                beatFraction={0}
-                currentTime={transportEngine.now()}
-              />
+        {/* iOS Ringer Warning Modal */}
+        {showRingerWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
+              <div className="text-center mb-4">
+                <span className="text-4xl">🔔</span>
+              </div>
+              <h3 className="text-lg font-semibold text-center mb-2">
+                Not hearing anything?
+              </h3>
+              <p className="text-sm text-muted-foreground text-center mb-6">
+                Make sure your ringer switch is on. iOS mutes web audio when your phone is in silent mode.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => dismissRingerWarning(false)} className="w-full">
+                  Got it
+                </Button>
+                <button
+                  onClick={() => dismissRingerWarning(true)}
+                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2"
+                >
+                  Don't show again
+                </button>
+              </div>
             </div>
+          </div>
+        )}
 
-            <div className="flex flex-col items-center justify-center">
-              <div className="text-center relative">
-                <p className="text-muted-foreground mb-8 text-lg tracking-wide animate-fade-in">
-                  Get ready...
-                </p>
+        {/* Landscape Tip Modal */}
+        {showLandscapeTip && !showRingerWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
+              <div className="text-center mb-4">
+                <span className="text-4xl">📱</span>
+              </div>
+              <h3 className="text-lg font-semibold text-center mb-2">
+                Try landscape mode
+              </h3>
+              <p className="text-sm text-muted-foreground text-center mb-6">
+                Rotate your phone sideways for a better view of the music notation.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => dismissLandscapeTip(false)} className="w-full">
+                  Got it
+                </Button>
+                <button
+                  onClick={() => dismissLandscapeTip(true)}
+                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2"
+                >
+                  Don't show again
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {(gameState === "countIn" || gameState === "running") && (
+          <div 
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center p-3 landscape:p-2 gap-3 landscape:gap-2 w-full animate-fade-in relative",
+              !groupMode && gameState === "running" && "cursor-pointer select-none"
+            )}
+            onPointerDown={!groupMode && gameState === "running" ? (e) => {
+              e.preventDefault()
+              handleHit()
+            } : undefined}
+            onTouchStart={!groupMode && gameState === "running" ? (e) => {
+              e.preventDefault()
+              handleHit()
+            } : undefined}
+            style={!groupMode && gameState === "running" ? {
+              WebkitTouchCallout: "none",
+              WebkitUserSelect: "none",
+              WebkitTapHighlightColor: "transparent",
+            } : undefined}
+          >
+            {/* Count-in overlay */}
+            {gameState === "countIn" && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
                 <div className="relative flex items-center justify-center">
-                  {/* Expanding pulse rings */}
                   {countInBeat && (
                     <>
                       <div
                         key={`ring1-${countInBeat}`}
-                        className="absolute w-40 h-40 rounded-full border-primary animate-count-ring"
+                        className="absolute w-32 landscape:w-24 h-32 landscape:h-24 rounded-full border-primary animate-count-ring"
                       />
                       <div
                         key={`ring2-${countInBeat}`}
-                        className="absolute w-40 h-40 rounded-full border-primary/60 animate-count-ring"
+                        className="absolute w-32 landscape:w-24 h-32 landscape:h-24 rounded-full border-primary/60 animate-count-ring"
                         style={{ animationDelay: "0.1s" }}
                       />
                     </>
                   )}
-                  {/* The number */}
                   <div
                     key={countInBeat}
-                    className="text-[10rem] md:text-[12rem] font-display font-bold text-primary animate-count-pulse leading-none"
+                    className="text-7xl landscape:text-5xl font-display font-bold text-primary animate-count-pulse leading-none"
                     style={{
-                      textShadow:
-                        "0 0 80px rgba(245,158,11,0.6), 0 0 120px rgba(245,158,11,0.3)",
+                      textShadow: "0 0 60px rgba(245,158,11,0.6), 0 0 100px rgba(245,158,11,0.3)",
                     }}
                   >
                     {countInBeat ?? ""}
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {gameState === "running" && (
-          <div className="flex-1 flex flex-col justify-center p-4 gap-4 max-w-4xl mx-auto w-full animate-fade-in">
             {/* Notation Panel */}
             <div
               className={cn(
-                "rounded-2xl p-4 md:p-5 border transition-all duration-150",
+                "w-full max-w-4xl rounded-2xl p-3 landscape:p-2 border transition-opacity duration-300",
                 "bg-gradient-to-b from-card/90 to-card/60",
                 "border-border/40",
                 "shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_4px_20px_-4px_rgba(0,0,0,0.3)]",
-                "backdrop-blur-sm"
+                "backdrop-blur-sm pointer-events-none",
+                gameState === "countIn" && "opacity-30"
               )}
             >
               <NotationRenderer
@@ -547,140 +629,99 @@ export function Game() {
               />
             </div>
 
-            {/* Touch Pad or Stop Button */}
-            <div className="max-w-xl mx-auto w-full pb-4 md:pb-6">
+            {/* Feedback / Stop */}
+            <div className="flex items-center justify-center h-8">
               {groupMode ? (
                 <button
                   onClick={stopGame}
-                  className="w-full py-3 text-sm font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                  className="py-1 px-4 text-sm font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                 >
                   Stop
                 </button>
               ) : (
-                <TouchPad
-                  onTap={handleHit}
-                  lastResult={lastResult}
-                />
+                <>
+                  {lastResult === "miss" ? (
+                    <span className="text-xl font-bold text-miss">Miss</span>
+                  ) : gameState === "running" && (
+                    <span className="text-xs text-muted-foreground/40">Tap anywhere</span>
+                  )}
+                </>
               )}
             </div>
           </div>
         )}
 
         {gameState === "gameOver" && (
-          <div className="flex-1 flex flex-col items-center justify-center p-4 w-full relative overflow-hidden">
-            {/* Dramatic spotlight effect */}
-            <div 
-              className="absolute inset-0 pointer-events-none animate-fade-in opacity-0"
-              style={{
-                background: "radial-gradient(ellipse 60% 40% at 50% 30%, rgba(239,68,68,0.15) 0%, transparent 60%)",
-                animationDelay: "0s",
-              }}
-            />
-            
-
-
-            {/* Game Over Title */}
-            <div className="relative z-10 text-center mb-6 animate-fade-in-up opacity-0" style={{ animationDelay: "0.15s" }}>
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:p-3 gap-4 landscape:gap-8 w-full max-w-md landscape:max-w-3xl mx-auto relative">
+            {/* Score section */}
+            <div className="flex flex-col items-center landscape:items-end landscape:flex-1 relative z-10">
+              {/* Game Over Title */}
               <h2
-                className="text-4xl sm:text-5xl font-display font-bold text-miss tracking-tight"
-                style={{ 
-                  textShadow: "0 0 40px rgba(239,68,68,0.4)",
-                }}
+                className="text-2xl font-display font-bold text-miss tracking-tight animate-fade-in-up opacity-0"
+                style={{ animationDelay: "0.15s", textShadow: "0 0 40px rgba(239,68,68,0.4)" }}
               >
                 Game Over
               </h2>
-              <p className="text-muted-foreground/60 text-sm mt-2">
+              <p className="text-muted-foreground/60 text-xs mb-3 landscape:mb-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s" }}>
                 {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
               </p>
-            </div>
 
-            {/* Main Score - hero treatment */}
-            <div 
-              className="relative z-10 mb-6 animate-score-reveal opacity-0 text-center" 
-              style={{ animationDelay: "0.3s" }}
-            >
-              <div className="relative inline-block">
-                <div 
-                  className="text-7xl sm:text-8xl md:text-9xl font-display tabular-nums text-primary"
-                  style={{ 
-                    textShadow: "0 0 80px rgba(245,158,11,0.5), 0 0 40px rgba(245,158,11,0.3)",
-                  }}
-                >
-                  {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
-                </div>
-                <div 
-                  className="absolute -inset-4 rounded-full opacity-20 blur-2xl -z-10"
-                  style={{ background: "radial-gradient(circle, rgba(245,158,11,0.4) 0%, transparent 70%)" }}
-                />
+              {/* Score */}
+              <div 
+                className="text-5xl landscape:text-4xl font-display tabular-nums text-primary animate-score-reveal opacity-0"
+                style={{ animationDelay: "0.3s", textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
+              >
+                {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
               </div>
-              <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground/50 mt-2">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-3 landscape:mb-2 animate-fade-in opacity-0" style={{ animationDelay: "0.35s" }}>
                 Final Score
               </div>
-            </div>
 
-            {/* Stats ribbon - horizontal flow */}
-            <div 
-              className="relative z-10 flex items-center justify-center gap-6 sm:gap-10 mb-8 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.45s" }}
-            >
-              {[
-                { value: score.totalHits, label: "hits" },
-                { value: `${score.timeSurvived.toFixed(1)}s`, label: "survived" },
-                { value: score.barsSurvived, label: "bars" },
-              ].map((stat, i, arr) => (
-                <>
+              {/* Stats */}
+              <div className="flex items-center gap-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.45s" }}>
+                {[
+                  { value: score.totalHits, label: "hits" },
+                  { value: `${score.timeSurvived.toFixed(1)}s`, label: "time" },
+                  { value: score.barsSurvived, label: "bars" },
+                ].map((stat) => (
                   <div key={stat.label} className="text-center">
-                    <div className="text-2xl sm:text-3xl font-bold text-foreground tabular-nums">
-                      {stat.value}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mt-1">
-                      {stat.label}
-                    </div>
+                    <div className="text-lg font-bold text-foreground tabular-nums">{stat.value}</div>
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">{stat.label}</div>
                   </div>
-                  {i < arr.length - 1 && (
-                    <div className="w-px h-6 bg-border/30 hidden sm:block" />
-                  )}
-                </>
-              ))}
+                ))}
+              </div>
+
+              {/* Settings */}
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/40 mt-2 animate-fade-in opacity-0" style={{ animationDelay: "0.5s" }}>
+                <span>{bpm} BPM</span>
+                <span>·</span>
+                <span>{difficultyLabels[difficulty]}</span>
+              </div>
             </div>
 
-            {/* Settings tag - subtle */}
-            <div 
-              className="relative z-10 flex items-center gap-3 text-xs text-muted-foreground/40 mb-8 animate-fade-in opacity-0"
-              style={{ animationDelay: "0.55s" }}
-            >
-              <span>{bpm} BPM</span>
-              <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-              <span>{difficultyLabels[difficulty]}</span>
-            </div>
-
-            {/* Action Buttons - refined */}
-            <div
-              className="relative z-10 flex flex-col items-center gap-3 w-full max-w-xs animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.65s" }}
-            >
+            {/* Buttons */}
+            <div className="flex flex-col items-center gap-2 w-full max-w-[200px] animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s" }}>
               <Button 
-                size="xl" 
+                size="default" 
                 onClick={startGame} 
-                className="w-full group relative overflow-hidden"
+                disabled={!canRestart}
+                className={cn("w-full", !canRestart && "opacity-50")}
               >
-                <span className="relative z-10">Play Again</span>
+                Play Again
               </Button>
               <Button 
                 variant="ghost" 
-                size="lg" 
+                size="sm" 
                 onClick={stopGame} 
                 className="w-full text-muted-foreground/70 hover:text-foreground"
               >
                 Menu
               </Button>
-              
-              {/* Coffee Link */}
               <a
                 href="https://buymeacoffee.com/danielives"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors mt-4 tracking-wide"
+                className="flex items-center gap-1 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors mt-1"
               >
                 <span>♡</span> Support the dev
               </a>

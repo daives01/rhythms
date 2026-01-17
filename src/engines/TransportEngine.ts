@@ -22,11 +22,55 @@ export class TransportEngine {
   private rhythmOnsets: { timeSec: number; scheduled: boolean }[] = []
   private scheduledOnsetTimes: Set<number> = new Set()
 
-  async init(): Promise<void> {
+  /**
+   * Unlock audio for iOS/Safari. MUST be called synchronously within a user gesture
+   * handler (click/touch), before any await statements.
+   */
+  unlockAudio(): void {
     if (!this.audioContext) {
       this.audioContext = new AudioContext()
     }
-    if (this.audioContext.state === "suspended") {
+    
+    // Call resume synchronously - this is the critical part for iOS
+    // The promise will resolve later, but the call must happen in gesture context
+    this.audioContext.resume()
+    
+    // Play silent buffer via Web Audio API
+    const buffer = this.audioContext.createBuffer(1, 1, 22050)
+    const source = this.audioContext.createBufferSource()
+    source.buffer = buffer
+    source.connect(this.audioContext.destination)
+    source.start(0)
+    
+    // iOS silent mode workaround: Play through HTML5 Audio element first.
+    // This "hijacks" the audio session to treat Web Audio as media (like music)
+    // instead of sound effects, allowing playback even when ringer is muted.
+    this.unlockWithHtmlAudio()
+  }
+  
+  private unlockWithHtmlAudio(): void {
+    // Create a tiny silent audio file as a data URI (minimal valid MP3)
+    const silentDataUri = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAHAAGf9AAAIgAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7UMQbA8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+    
+    const audio = new Audio(silentDataUri)
+    audio.setAttribute("playsinline", "true")
+    audio.volume = 0.01  // Nearly silent but not zero (some browsers ignore zero)
+    
+    // Play and immediately clean up
+    audio.play().then(() => {
+      audio.pause()
+      audio.remove()
+    }).catch(() => {
+      // Ignore errors - this is just a best-effort unlock
+    })
+  }
+
+  async init(): Promise<void> {
+    // Ensure audio is unlocked (in case unlockAudio wasn't called first)
+    this.unlockAudio()
+    
+    // Wait for the context to be running
+    if (this.audioContext && this.audioContext.state !== "running") {
       await this.audioContext.resume()
     }
   }

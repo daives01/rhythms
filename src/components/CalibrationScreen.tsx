@@ -183,16 +183,24 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
       )}
 
       {phase === "countIn" && (
-        <div className="flex-1 flex flex-col items-center justify-center w-full">
-          <p className="text-muted-foreground mb-6 text-lg animate-fade-in">Get ready to tap...</p>
-          <div
-            key={countInBeat}
-            className="text-9xl font-display font-bold text-primary animate-count-pulse"
-            style={{ textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
-          >
-            {countInBeat ?? ""}
+        <div className="flex-1 flex flex-col items-center justify-center w-full gap-8">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-6 text-lg animate-fade-in">Get ready to tap...</p>
+            <div
+              key={countInBeat}
+              className="text-9xl font-display font-bold text-primary animate-count-pulse"
+              style={{ textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
+            >
+              {countInBeat ?? ""}
+            </div>
           </div>
-          <Button variant="ghost" size="lg" onClick={handleCancel} className="mt-8">
+
+          {/* TouchPad preview during count-in */}
+          <div className="w-full max-w-xl px-4 animate-fade-in opacity-70">
+            <TouchPad onTap={() => {}} disabled />
+          </div>
+
+          <Button variant="ghost" size="lg" onClick={handleCancel}>
             Cancel (Esc)
           </Button>
         </div>

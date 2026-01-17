@@ -243,37 +243,10 @@ function gridToVexNotes(
   return { notes: combinedNotes, beamGroups, noteToOnset }
 }
 
-// Minimum bar width to ensure notes don't overflow
-const MIN_BAR_WIDTH = 140
-const MIN_FIRST_BAR_WIDTH = 200
-
-// Calculate bar width based on complexity
-function calculateBarWidth(bar: RuntimeBar, baseWidth: number, isFirst: boolean): number {
-  const numNotes = bar.onsets.length
-
-  // Count sixteenth note positions used (more = more complex)
-  let hasOffbeatSixteenths = false
-  for (const onset of bar.onsets) {
-    if (onset.n % 2 === 1) hasOffbeatSixteenths = true
-  }
-
-  // Base width scaled by content - dense bars need substantially more space
-  let widthMultiplier = 1.0
-
-  if (numNotes >= 12) widthMultiplier = 1.7
-  else if (numNotes >= 8) widthMultiplier = 1.4
-  else if (numNotes >= 5) widthMultiplier = 1.15
-  else if (numNotes >= 3) widthMultiplier = 1.0
-  else widthMultiplier = 0.9
-
-  if (hasOffbeatSixteenths) widthMultiplier += 0.2
-
-  // First bar needs extra space for clef/time sig
-  const firstBarExtra = isFirst ? 60 : 0
-  const minWidth = isFirst ? MIN_FIRST_BAR_WIDTH : MIN_BAR_WIDTH
-
-  return Math.max(minWidth, Math.round(baseWidth * widthMultiplier + firstBarExtra))
-}
+// Fixed bar width - large enough for 16 sixteenth notes with tuplets
+// VexFlow needs significant space to avoid note overflow
+const FIXED_BAR_WIDTH = 300
+const FIXED_FIRST_BAR_WIDTH = 360
 
 interface BarRenderResult {
   noteToOnset: Map<StaveNote, RuntimeOnset>
@@ -392,7 +365,9 @@ function renderBar(
     voice.setStrict(false)
     voice.addTickables(allNotes)
     
-    new Formatter().joinVoices([voice]).formatToStave([voice], stave)
+    // Use explicit width to prevent overflow - leave padding for bar lines
+    const noteAreaWidth = width - (isFirst ? 80 : 20)
+    new Formatter().joinVoices([voice]).format([voice], noteAreaWidth, { alignRests: true })
     voice.draw(ctx, stave)
     
     for (const { beam } of beamsWithNotes) {
@@ -423,7 +398,9 @@ function renderBar(
       }
     }
 
-    new Formatter().joinVoices([voice]).formatToStave([voice], stave)
+    // Use explicit width to prevent overflow
+    const noteAreaWidth = width - (isFirst ? 80 : 20)
+    new Formatter().joinVoices([voice]).format([voice], noteAreaWidth, { alignRests: true })
     voice.draw(ctx, stave)
 
     for (const { beam } of beamsWithNotes) {
@@ -456,16 +433,13 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
     return () => window.removeEventListener("resize", updateDimensions)
   }, [])
 
-  const baseBarWidth = (dimensions.width - 20) / 4
-
-  // Calculate widths for all bars
-  const barWidths = bars.map((bar) => {
-    const isFirst = bar.barIndex === 0
-    return calculateBarWidth(bar, baseBarWidth, isFirst)
-  })
+  // Fixed bar widths - small screens just see less bars ahead
+  const barWidths = bars.map((bar) => 
+    bar.barIndex === 0 ? FIXED_FIRST_BAR_WIDTH : FIXED_BAR_WIDTH
+  )
 
   // Add left padding so first bar starts further right (allows immediate scrolling)
-  const leftPadding = dimensions.width * 0.2
+  const leftPadding = dimensions.width * 0.15
 
   // Calculate local positions for rendering (where each bar is drawn in the SVG)
   const barPositions: number[] = []

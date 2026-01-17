@@ -199,7 +199,7 @@ export function Knob({
             "bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-900",
             "border border-zinc-600/50",
             "shadow-[0_4px_12px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1),inset_0_-1px_0_rgba(0,0,0,0.3)]",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            "focus:outline-none"
           )}
           style={{ transform: `rotate(${rotation}deg)` }}
         >
