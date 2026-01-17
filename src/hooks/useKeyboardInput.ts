@@ -61,11 +61,12 @@ export function useKeyboardInput(onHit: () => void, enabled: boolean = true) {
     window.addEventListener("keyup", handleKeyUp)
     window.addEventListener("blur", handleBlur)
 
+    const keys = heldKeys.current
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
       window.removeEventListener("blur", handleBlur)
-      heldKeys.current.clear()
+      keys.clear()
     }
   }, [onHit, enabled])
 }

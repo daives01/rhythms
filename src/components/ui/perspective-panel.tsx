@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, type ReactNode } from "react"
 import { TiltContext, type TiltContextValue } from "./tilt-context"
-export { useTilt } from "./tilt-context"
 
 interface PerspectivePanelProps {
   children: ReactNode

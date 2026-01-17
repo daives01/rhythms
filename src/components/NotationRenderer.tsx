@@ -77,6 +77,9 @@ function processBeat(
         restCount++
       }
 
+      // Check if there's a note after the rests (for rest absorption)
+      const hasNoteAfterRests = i + 1 + restCount < 4
+
       let note: StaveNote
       const onsetSlot = beatStart + i
       const onset = slotToOnset.get(onsetSlot) || null
@@ -84,6 +87,17 @@ function processBeat(
       if (i === 0 && restCount === 3) {
         note = new StaveNote({ keys: ["c/5"], duration: "q", stemDirection: 1 })
         i += 4
+      } else if (i === 0 && restCount === 2 && hasNoteAfterRests) {
+        // Dotted 8th: absorb 2 rests when note follows at slot 3
+        // e.g., 8th + 16th rest + 16th → dotted 8th + 16th
+        note = new StaveNote({ keys: ["c/5"], duration: "8d", stemDirection: 1 })
+        Dot.buildAndAttach([note], { all: true })
+        i += 3
+      } else if (hasNoteAfterRests && restCount >= 1) {
+        // 8th note: absorb 1 rest when note follows
+        // e.g., 16th + 16th + 16th rest + 16th → 16th + 8th + 16th
+        note = new StaveNote({ keys: ["c/5"], duration: "8", stemDirection: 1 })
+        i += 2
       } else if (i % 2 === 0 && restCount >= 1) {
         note = new StaveNote({ keys: ["c/5"], duration: "8", stemDirection: 1 })
         i += 2

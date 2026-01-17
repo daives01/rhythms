@@ -191,6 +191,14 @@ export function Game() {
     judgeEngine.onHit()
   }
 
+  const stopGame = () => {
+    transportEngine.stop()
+    judgeEngine.stop()
+    setGameState("idle")
+    setCountInBeat(null)
+    if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
+  }
+
   useKeyboardInput(handleHit, gameState === "running" && !groupMode)
 
   useEffect(() => {
@@ -203,7 +211,7 @@ export function Game() {
     }
     window.addEventListener("keydown", handleEscape)
     return () => window.removeEventListener("keydown", handleEscape)
-  }, [groupMode, gameState])
+  }, [groupMode, gameState, stopGame])
 
   const startGame = async () => {
     // CRITICAL: Unlock audio FIRST, synchronously within the click handler.
@@ -216,12 +224,20 @@ export function Game() {
     const toleranceMap: Record<Difficulty, number> = { easy: 130, medium: 100, hard: 70 }
     judgeEngine.setTolerance(toleranceMap[difficulty])
     judgeEngine.setBpm(bpm)
+    judgeEngine.setLatencyOffset(latencyOffset)
 
     // Set play-along volume
     transportEngine.setRhythmSoundVolume(playAlongVolume)
 
     setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
     setGameOverReason(null)
+
+    // Reset position state to prevent scroll position issues on repeat
+    setCurrentBar(0)
+    setCurrentBeat(0)
+    setBeatFraction(0)
+    setCurrentTime(0)
+
     setGameState("countIn")
     setCountInBeat(null)
 
@@ -237,13 +253,17 @@ export function Game() {
     }
   }
 
-  const stopGame = () => {
-    transportEngine.stop()
-    judgeEngine.stop()
-    setGameState("idle")
-    setCountInBeat(null)
-    if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
-  }
+  useEffect(() => {
+    if (gameState !== "gameOver" || !canRestart) return
+
+    const handleEnterRestart = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        startGame()
+      }
+    }
+    window.addEventListener("keydown", handleEnterRestart)
+    return () => window.removeEventListener("keydown", handleEnterRestart)
+  }, [gameState, canRestart])
 
   useEffect(() => {
     const unsubBeat = transportEngine.onBeat((beat, _bar, isCountIn) => {
@@ -260,7 +280,7 @@ export function Game() {
       }
     })
 
-    const unsubJudge = judgeEngine.onJudge((result, _onset, _timing) => {
+    const unsubJudge = judgeEngine.onJudge((result) => {
       showFeedback(result)
       if (result === "hit") {
         setScore((s) => ({ ...s, totalHits: s.totalHits + 1 }))
@@ -282,7 +302,7 @@ export function Game() {
       unsubJudge()
       unsubGameOver()
     }
-  }, [gameState, showFeedback])
+  }, [gameState, showFeedback, groupMode])
 
   useEffect(() => {
     if (gameState !== "running" && gameState !== "countIn") return
@@ -321,7 +341,7 @@ export function Game() {
     return () => {
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
     }
-  }, [gameState, bpm])
+  }, [gameState, bpm, playAlongVolume])
 
   useEffect(() => {
     return () => {
@@ -567,17 +587,15 @@ export function Game() {
             )}
             onPointerDown={!groupMode && gameState === "running" ? (e) => {
               e.preventDefault()
+              e.stopPropagation()
               handleHit()
             } : undefined}
-            onTouchStart={!groupMode && gameState === "running" ? (e) => {
-              e.preventDefault()
-              handleHit()
-            } : undefined}
-            style={!groupMode && gameState === "running" ? {
+            style={{
+              touchAction: "none",
               WebkitTouchCallout: "none",
               WebkitUserSelect: "none",
               WebkitTapHighlightColor: "transparent",
-            } : undefined}
+            }}
           >
             {/* Count-in overlay */}
             {gameState === "countIn" && (
@@ -638,15 +656,9 @@ export function Game() {
                 >
                   Stop
                 </button>
-              ) : (
-                <>
-                  {lastResult === "miss" ? (
-                    <span className="text-xl font-bold text-miss">Miss</span>
-                  ) : gameState === "running" && (
-                    <span className="text-xs text-muted-foreground/40">Tap anywhere</span>
-                  )}
-                </>
-              )}
+              ) : lastResult === "miss" ? (
+                <span className="text-xl font-bold text-miss">Miss</span>
+              ) : null}
             </div>
           </div>
         )}

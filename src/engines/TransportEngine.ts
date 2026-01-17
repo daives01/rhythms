@@ -27,42 +27,79 @@ export class TransportEngine {
    * handler (click/touch), before any await statements.
    */
   unlockAudio(): void {
+    // iOS silent mode workaround: Play HTML5 Audio element FIRST.
+    // This establishes the audio session in "playback" mode (like music)
+    // rather than "ambient" mode (sound effects that respect ringer switch).
+    // Must happen before Web Audio API initialization.
+    this.unlockWithHtmlAudio()
+
     if (!this.audioContext) {
       this.audioContext = new AudioContext()
     }
-    
+
     // Call resume synchronously - this is the critical part for iOS
     // The promise will resolve later, but the call must happen in gesture context
     this.audioContext.resume()
-    
+
     // Play silent buffer via Web Audio API
     const buffer = this.audioContext.createBuffer(1, 1, 22050)
     const source = this.audioContext.createBufferSource()
     source.buffer = buffer
     source.connect(this.audioContext.destination)
     source.start(0)
-    
-    // iOS silent mode workaround: Play through HTML5 Audio element first.
-    // This "hijacks" the audio session to treat Web Audio as media (like music)
-    // instead of sound effects, allowing playback even when ringer is muted.
-    this.unlockWithHtmlAudio()
   }
-  
+
   private unlockWithHtmlAudio(): void {
-    // Create a tiny silent audio file as a data URI (minimal valid MP3)
-    const silentDataUri = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAHAAGf9AAAIgAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7UMQbA8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
-    
-    const audio = new Audio(silentDataUri)
+    // Generate a short silent WAV programmatically (100ms at 8kHz)
+    // Must have actual duration for iOS to properly establish the audio session
+    const sampleRate = 8000
+    const duration = 0.1
+    const numSamples = Math.ceil(duration * sampleRate)
+    const headerSize = 44
+    const dataSize = numSamples * 2 // 16-bit samples
+    const buffer = new ArrayBuffer(headerSize + dataSize)
+    const view = new DataView(buffer)
+
+    // RIFF header
+    this.writeString(view, 0, "RIFF")
+    view.setUint32(4, 36 + dataSize, true)
+    this.writeString(view, 8, "WAVE")
+
+    // fmt chunk
+    this.writeString(view, 12, "fmt ")
+    view.setUint32(16, 16, true) // chunk size
+    view.setUint16(20, 1, true) // PCM format
+    view.setUint16(22, 1, true) // mono
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, sampleRate * 2, true) // byte rate
+    view.setUint16(32, 2, true) // block align
+    view.setUint16(34, 16, true) // bits per sample
+
+    // data chunk (samples are already 0 = silence)
+    this.writeString(view, 36, "data")
+    view.setUint32(40, dataSize, true)
+
+    const blob = new Blob([buffer], { type: "audio/wav" })
+    const audio = new Audio(URL.createObjectURL(blob))
     audio.setAttribute("playsinline", "true")
-    audio.volume = 0.01  // Nearly silent but not zero (some browsers ignore zero)
-    
-    // Play and immediately clean up
+    audio.volume = 0.01 // Nearly silent but not zero
+
+    // Let it play through - don't pause immediately
+    // iOS needs time to establish the audio session
     audio.play().then(() => {
-      audio.pause()
-      audio.remove()
+      audio.onended = () => {
+        URL.revokeObjectURL(audio.src)
+        audio.remove()
+      }
     }).catch(() => {
-      // Ignore errors - this is just a best-effort unlock
+      // Ignore errors - best effort unlock
     })
+  }
+
+  private writeString(view: DataView, offset: number, str: string): void {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i))
+    }
   }
 
   async init(): Promise<void> {

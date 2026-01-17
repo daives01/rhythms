@@ -11,47 +11,32 @@ interface TouchPadProps {
 export function TouchPad({ onTap, disabled = false, lastResult }: TouchPadProps) {
   const [isPressed, setIsPressed] = useState(false)
   const padRef = useRef<HTMLButtonElement>(null)
-  const activeTouches = useRef<Set<number>>(new Set())
+  const activePointers = useRef<Set<number>>(new Set())
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (disabled) return
     e.preventDefault()
     e.stopPropagation()
 
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i]
-      if (!activeTouches.current.has(touch.identifier)) {
-        activeTouches.current.add(touch.identifier)
-        onTap()
-      }
+    if (!activePointers.current.has(e.pointerId)) {
+      activePointers.current.add(e.pointerId)
+      onTap()
     }
     setIsPressed(true)
   }, [disabled, onTap])
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      activeTouches.current.delete(e.changedTouches[i].identifier)
-    }
-
-    if (activeTouches.current.size === 0) {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    activePointers.current.delete(e.pointerId)
+    if (activePointers.current.size === 0) {
       setIsPressed(false)
     }
   }, [])
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType === "touch") return
-    if (disabled) return
-    e.preventDefault()
-    setIsPressed(true)
-    onTap()
-  }
-
-  const handlePointerUp = useCallback((e: PointerEvent) => {
-    if (e.pointerType === "touch") return
-    setIsPressed(false)
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    activePointers.current.delete(e.pointerId)
+    if (activePointers.current.size === 0) {
+      setIsPressed(false)
+    }
   }, [])
 
   const preventDefaults = useCallback((e: React.SyntheticEvent) => {
@@ -60,13 +45,9 @@ export function TouchPad({ onTap, disabled = false, lastResult }: TouchPadProps)
   }, [])
 
   useEffect(() => {
-    window.addEventListener("pointerup", handlePointerUp)
-    return () => window.removeEventListener("pointerup", handlePointerUp)
-  }, [handlePointerUp])
-
-  useEffect(() => {
+    const pointers = activePointers.current
     return () => {
-      activeTouches.current.clear()
+      pointers.clear()
     }
   }, [])
 
@@ -77,16 +58,14 @@ export function TouchPad({ onTap, disabled = false, lastResult }: TouchPadProps)
   return (
     <button
       ref={padRef}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      onTouchMove={preventDefaults}
       onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onContextMenu={preventDefaults}
       onDoubleClick={preventDefaults}
       disabled={disabled}
       className={cn(
-        "relative w-full h-32 md:h-40 overflow-hidden",
+        "relative w-full h-28 landscape:h-20 md:h-40 overflow-hidden",
         "rounded-2xl transition-all duration-75",
         "touch-none select-none cursor-pointer",
         "bg-gradient-to-b from-zinc-800 to-zinc-900",

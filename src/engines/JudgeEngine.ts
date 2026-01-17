@@ -13,6 +13,8 @@ export class JudgeEngine {
   private onGameOverCallbacks: Set<GameOverCallback> = new Set()
   private missCheckTimer: number | null = null
   private isActive: boolean = false
+  private lastHitTime: number = 0
+  private readonly inputDebounceMs: number = 50
 
   setTolerance(toleranceMs: number): void {
     this.baseToleranceMs = Math.max(40, Math.min(150, toleranceMs))
@@ -26,25 +28,23 @@ export class JudgeEngine {
     const beatDurationMs = (60 / this.bpm) * 1000
     const sixteenthDurationMs = beatDurationMs / 4
 
-    // Scale tolerance so it never exceeds ~40% of a sixteenth note
-    // This prevents overlapping hit windows at high BPM/density
-    const maxToleranceForBpm = sixteenthDurationMs * 0.4
+    // Cap at 60% of a sixteenth note to prevent hitting wrong notes
+    // but ensure a minimum floor of 50ms so high BPM still feels playable
+    const maxToleranceForBpm = Math.max(50, sixteenthDurationMs * 0.6)
 
-    // Also scale down the base tolerance at higher BPMs
-    // At 60 BPM: use full base tolerance
-    // At 180 BPM: use ~60% of base tolerance
-    const bpmScale = Math.max(0.5, 1 - (this.bpm - 60) / 300)
+    // Gentle BPM scaling - reduce tolerance slightly at higher BPM
+    const bpmScale = Math.max(0.7, 1 - (this.bpm - 60) / 400)
     const scaledBase = this.baseToleranceMs * bpmScale
 
     return Math.min(scaledBase, maxToleranceForBpm)
   }
 
   private getEarlyWindow(): number {
-    // Early window scales with tolerance but capped to prevent hitting notes too early
     const tolerance = this.getScaledTolerance()
     const beatDurationMs = (60 / this.bpm) * 1000
-    const maxEarly = beatDurationMs * 0.4 // Max 40% of a beat early
-    return Math.min(tolerance * 2.5, maxEarly)
+    // Allow hitting up to 40% of a beat early, but scale with tolerance
+    const maxEarly = beatDurationMs * 0.4
+    return Math.min(tolerance * 2, maxEarly)
   }
 
   getTolerance(): number {
@@ -71,6 +71,8 @@ export class JudgeEngine {
 
   start(): void {
     this.isActive = true
+    this.lastHitTime = 0
+    console.log(`[Judge] Started - BPM=${this.bpm}, baseTolerance=${this.baseToleranceMs}ms, scaledTolerance=${this.getScaledTolerance().toFixed(0)}ms, earlyWindow=${this.getEarlyWindow().toFixed(0)}ms, latencyOffset=${this.latencyOffsetMs}ms`)
     this.startMissCheck()
   }
 
@@ -87,36 +89,49 @@ export class JudgeEngine {
 
     const rawHitTime = transportEngine.now()
     const hitTime = rawHitTime - this.latencyOffsetMs / 1000
-    const toleranceSec = this.getScaledTolerance() / 1000
-    const earlyWindowSec = this.getEarlyWindow() / 1000
+
+    // Debounce to prevent double-fires from touch/pointer events
+    // 50ms is short enough to allow fast 16th notes at high BPM
+    if ((hitTime - this.lastHitTime) * 1000 < this.inputDebounceMs) {
+      console.log(`[Judge] Debounced tap (${((hitTime - this.lastHitTime) * 1000).toFixed(1)}ms since last)`)
+      return
+    }
+    this.lastHitTime = hitTime
+
     const unhitOnsets = rhythmBuffer.getUnhitOnsets()
+    const nextOnset = unhitOnsets[0]
 
-    let bestOnset: RuntimeOnset | null = null
-    let bestScore = Infinity
-
-    for (const onset of unhitOnsets) {
-      const timeDiff = onset.timeSec - hitTime
-
-      if (timeDiff >= -toleranceSec && timeDiff <= earlyWindowSec) {
-        const score = Math.abs(timeDiff)
-        if (score < bestScore) {
-          bestScore = score
-          bestOnset = onset
-        }
-      }
+    if (!nextOnset) {
+      console.log(`[Judge] ✗ EXTRA NOTE - no unhit onsets remaining`)
+      this.notifyJudge("miss", null, 0)
+      this.triggerGameOver("extra")
+      return
     }
 
-    if (bestOnset) {
-      rhythmBuffer.markHit(bestOnset.id)
-      const timingError = (hitTime - bestOnset.timeSec) * 1000
-      this.notifyJudge("hit", bestOnset, timingError)
-    } else {
-      const nextOnset = unhitOnsets.find(o => o.timeSec > hitTime)
-      if (!nextOnset || (nextOnset.timeSec - hitTime) > 0.5) {
-        this.notifyJudge("extra", null, 0)
-        this.triggerGameOver("extra")
-      }
+    const toleranceMs = this.getScaledTolerance()
+    const earlyWindowMs = this.getEarlyWindow()
+    const deltaMs = (hitTime - nextOnset.timeSec) * 1000
+
+    console.log(`[Judge] Tap: delta=${deltaMs.toFixed(1)}ms, window=[-${earlyWindowMs.toFixed(0)}, +${toleranceMs.toFixed(0)}]ms, onset=${nextOnset.id} @ ${nextOnset.timeSec.toFixed(3)}s`)
+
+    // Within the hit window - register the hit
+    if (deltaMs >= -earlyWindowMs && deltaMs <= toleranceMs) {
+      rhythmBuffer.markHit(nextOnset.id)
+      this.notifyJudge("hit", nextOnset, deltaMs)
+      console.log(`[Judge] ✓ HIT (${deltaMs > 0 ? 'late' : 'early'} by ${Math.abs(deltaMs).toFixed(1)}ms)`)
+      return
     }
+
+    // Too early (before early window) - extra note
+    if (deltaMs < -earlyWindowMs) {
+      console.log(`[Judge] ✗ EXTRA NOTE - tap too early (${Math.abs(deltaMs).toFixed(1)}ms before onset, window is ${earlyWindowMs.toFixed(0)}ms)`)
+      this.notifyJudge("miss", null, deltaMs)
+      this.triggerGameOver("extra")
+      return
+    }
+
+    // Too late (after tolerance) - log but let miss check handle game over
+    console.log(`[Judge] Tap too late (${deltaMs.toFixed(1)}ms after onset, tolerance is ${toleranceMs.toFixed(0)}ms)`)
   }
 
   private startMissCheck(): void {
@@ -127,13 +142,19 @@ export class JudgeEngine {
       const adjustedTime = rawTime - this.latencyOffsetMs / 1000
       const toleranceSec = this.getScaledTolerance() / 1000
       const unhitOnsets = rhythmBuffer.getUnhitOnsets()
+      const nextOnset = unhitOnsets[0]
 
-      for (const onset of unhitOnsets) {
-        if (adjustedTime > onset.timeSec + toleranceSec) {
-          this.notifyJudge("miss", onset, 0)
-          this.triggerGameOver("miss")
-          return
-        }
+      // Check if the next unhit note has expired (player missed it)
+      if (nextOnset && adjustedTime > nextOnset.timeSec + toleranceSec) {
+        const deltaMs = (adjustedTime - nextOnset.timeSec) * 1000
+        console.log(`[Judge] ✗ MISS DETECTED by timer:`)
+        console.log(`  onset=${nextOnset.id} was due at ${nextOnset.timeSec.toFixed(3)}s`)
+        console.log(`  current time=${adjustedTime.toFixed(3)}s (raw=${rawTime.toFixed(3)}s, offset=${this.latencyOffsetMs}ms)`)
+        console.log(`  tolerance=${(toleranceSec * 1000).toFixed(0)}ms, overdue by ${(deltaMs - toleranceSec * 1000).toFixed(1)}ms`)
+        console.log(`  unhit onsets remaining: ${unhitOnsets.length}`)
+        this.notifyJudge("miss", nextOnset, deltaMs)
+        this.triggerGameOver("miss")
+        return
       }
 
       this.missCheckTimer = requestAnimationFrame(check)
@@ -143,12 +164,16 @@ export class JudgeEngine {
   }
 
   private notifyJudge(result: HitResult, onset: RuntimeOnset | null, timingError: number): void {
-    this.onJudgeCallbacks.forEach((cb) => cb(result, onset, timingError))
+    for (const callback of this.onJudgeCallbacks) {
+      callback(result, onset, timingError)
+    }
   }
 
   private triggerGameOver(reason: "miss" | "extra"): void {
     this.stop()
-    this.onGameOverCallbacks.forEach((cb) => cb(reason))
+    for (const callback of this.onGameOverCallbacks) {
+      callback(reason)
+    }
   }
 }
 
