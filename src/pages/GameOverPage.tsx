@@ -99,7 +99,7 @@ export function GameOverPage() {
     : getDifficultyFromValue(settings.difficultyValue)
   const tuplets = challengeData?.tuplets ?? settings.includeTuplets
 
-  const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
+  const difficultyLabels: Record<Difficulty, string> = { easy: "EASY", medium: "NORMAL", hard: "HARD" }
 
   // Prevent accidental restart - delay before buttons are active
   useEffect(() => {
@@ -168,24 +168,18 @@ export function GameOverPage() {
           {/* Left: Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h2
-              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+              style={{ letterSpacing: "0.1em" }}
             >
               game over
             </h2>
-            <p
-              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.15s" }}
-            >
-              {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
+            <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
+              {gameOverReason === "miss" ? "MISSED A NOTE" : "EXTRA TAP"}
             </p>
           </div>
 
           {/* Right: Results panel */}
-          <PanelContainer
-            className="w-full landscape:w-[400px] landscape:shrink-0 animate-score-reveal opacity-0"
-            style={{ animationDelay: "0.2s" }}
-          >
+          <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
             {/* Final score */}
             <div className="p-6 text-center">
               <div className="text-5xl font-display font-bold tabular-nums text-foreground">
@@ -226,7 +220,7 @@ export function GameOverPage() {
               {tuplets && (
                 <>
                   <span className="w-px h-3 bg-border" />
-                  <span>Tuplets</span>
+                  <span>TUPLETS</span>
                 </>
               )}
             </div>
@@ -236,18 +230,22 @@ export function GameOverPage() {
             {/* Actions */}
             <div className="p-6 flex items-center gap-3">
               {challengeParam && (
-                <button
-                  onClick={handleRetry}
-                  disabled={!canRestart}
-                  className={cn(
-                    "p-2.5 border border-border hover:bg-white/5 transition-colors",
-                    !canRestart && "opacity-50 cursor-not-allowed"
-                  )}
-                  aria-label="Retry same challenge"
-                  title="Retry same"
-                >
-                  <RotateCcw className="w-4 h-4 text-muted-foreground" />
-                </button>
+                <div className="relative group">
+                  <button
+                    onClick={handleRetry}
+                    disabled={!canRestart}
+                    className={cn(
+                      "p-2.5 border border-border hover:bg-white/5 transition-colors",
+                      !canRestart && "opacity-50 cursor-not-allowed"
+                    )}
+                    aria-label="Retry same challenge"
+                  >
+                    <RotateCcw className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-white text-[9px] uppercase tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    Retry same
+                  </span>
+                </div>
               )}
               <Button
                 size="default"
@@ -255,35 +253,29 @@ export function GameOverPage() {
                 disabled={!canRestart}
                 className={cn("flex-1", !canRestart && "opacity-50")}
               >
-                Play Again
+                PLAY AGAIN
               </Button>
               {challengeParam && (
-                <button
-                  onClick={handleCopyLink}
-                  className="p-2.5 border border-border hover:bg-white/5 transition-colors"
-                  aria-label="Copy challenge link"
-                  title="Copy link"
-                >
-                  {copied ? (
-                    <Check className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </button>
+                <div className="relative group">
+                  <button
+                    onClick={handleCopyLink}
+                    className="p-2.5 border border-border hover:bg-white/5 transition-colors"
+                    aria-label="Copy challenge link"
+                  >
+                    {copied ? (
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-white text-[9px] uppercase tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    Challenge a friend
+                  </span>
+                </div>
               )}
             </div>
           </PanelContainer>
 
-          {/* Support link */}
-          <a
-            href="https://buymeacoffee.com/danielives"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute bottom-4 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up opacity-0"
-            style={{ animationDelay: "0.4s" }}
-          >
-            ♡ Support the dev
-          </a>
         </div>
       </main>
     </div>

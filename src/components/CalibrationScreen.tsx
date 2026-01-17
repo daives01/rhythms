@@ -159,24 +159,18 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
           {/* Left: Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h2
-              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+              style={{ letterSpacing: "0.1em" }}
             >
               calibrate
             </h2>
-            <p
-              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.15s" }}
-            >
+            <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
               Measure your device's audio latency
             </p>
           </div>
 
           {/* Right: Panel */}
-          <PanelContainer
-            className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
-            style={{ animationDelay: "0.2s" }}
-          >
+          <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
             {/* Current offset */}
             <div className="p-6 text-center">
               <div className="text-4xl font-display font-bold tabular-nums text-foreground">
@@ -255,24 +249,18 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
           {/* Left: Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h2
-              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+              style={{ letterSpacing: "0.1em" }}
             >
               complete
             </h2>
-            <p
-              className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.15s" }}
-            >
+            <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
               Calibration finished
             </p>
           </div>
 
           {/* Right: Panel */}
-          <PanelContainer
-            className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
-            style={{ animationDelay: "0.2s" }}
-          >
+          <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
             {/* Offset comparison */}
             <div className="p-6 flex items-center justify-center gap-6">
               <div className="text-center">

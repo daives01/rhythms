@@ -15,20 +15,28 @@ export function PanelContainer({ children, className, style }: PanelContainerPro
   const [bounds, setBounds] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null)
 
   useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+
     const updateBounds = () => {
-      if (ref.current) {
-        const rect = ref.current.getBoundingClientRect()
-        setBounds({
-          top: rect.top - GRID_OFFSET,
-          bottom: rect.bottom + GRID_OFFSET,
-          left: rect.left - GRID_OFFSET,
-          right: rect.right + GRID_OFFSET,
-        })
-      }
+      const rect = el.getBoundingClientRect()
+      setBounds({
+        top: rect.top - GRID_OFFSET,
+        bottom: rect.bottom + GRID_OFFSET,
+        left: rect.left - GRID_OFFSET,
+        right: rect.right + GRID_OFFSET,
+      })
     }
+
     updateBounds()
     window.addEventListener("resize", updateBounds)
-    return () => window.removeEventListener("resize", updateBounds)
+    const ro = new ResizeObserver(updateBounds)
+    ro.observe(el)
+
+    return () => {
+      window.removeEventListener("resize", updateBounds)
+      ro.disconnect()
+    }
   }, [])
 
   return (
@@ -42,7 +50,7 @@ export function PanelContainer({ children, className, style }: PanelContainerPro
         </>,
         document.body
       )}
-      <div className="relative bg-muted">
+      <div className="relative bg-muted border border-border">
         {children}
       </div>
     </div>

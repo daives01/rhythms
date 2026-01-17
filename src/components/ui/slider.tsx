@@ -1,11 +1,13 @@
 import { useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import type { LucideIcon } from "lucide-react"
 
 interface SliderProps {
   value: number
   onValueChange: (value: number) => void
   color?: string
-  label?: React.ReactNode
+  icon?: LucideIcon
+  label?: string
   units?: string[]
   min?: number
   max?: number
@@ -17,6 +19,7 @@ export function Slider({
   value,
   onValueChange,
   color,
+  icon: Icon,
   label,
   units,
   min = 0,
@@ -27,10 +30,11 @@ export function Slider({
   const percentage = ((value - min) / (max - min)) * 100
   const isActive = value > 0
   const ledColor = color || "rgb(52, 211, 153)"
-  
+
   const inputRef = useRef<HTMLInputElement>(null)
   const isSnappping = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
 
   const handleChange = (newValue: number) => {
     if (!isSnappping.current) {
@@ -42,16 +46,16 @@ export function Slider({
     if (!inputRef.current || !snapPoints || snapPoints.length === 0) {
       return
     }
-    
+
     const currentValue = Number(inputRef.current.value)
     const nearest = snapPoints.reduce((prev, curr) =>
       Math.abs(curr - currentValue) < Math.abs(prev - currentValue) ? curr : prev
     )
-    
+
     setIsAnimating(true)
     isSnappping.current = true
     onValueChange(nearest)
-    
+
     setTimeout(() => {
       isSnappping.current = false
       setIsAnimating(false)
@@ -61,47 +65,53 @@ export function Slider({
   const textShadow = `0 0 6px rgba(${ledColor.match(/\d+/g)?.slice(0, 3).join(", ") || "52, 211, 153"}, 0.5)`
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-start gap-3 relative">
-        <div className="flex items-center gap-3 w-16 shrink-0 relative z-10 h-8">
-          <div 
-            className="w-2.5 h-2.5 transition-all duration-200 border border-zinc-700 shrink-0"
-            style={{ 
-              backgroundColor: ledColor,
-              boxShadow: ledRgba
+    <div className="flex flex-col gap-1 relative">
+      {Icon && (
+        <div
+          className="absolute -left-10 top-0 h-8 w-10 flex items-center justify-center z-10"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <Icon
+            className="w-5 h-5"
+            style={{
+              color: ledColor,
+              filter: `drop-shadow(0 0 4px ${ledRgba})`
             }}
           />
-
-          {label && (
-            <span
-              className="text-xs font-medium uppercase tracking-wider truncate"
-              style={{ 
+          {label && isHovered && (
+            <div
+              className="absolute left-full ml-2 px-2 py-1 rounded text-xs font-medium uppercase tracking-wider whitespace-nowrap z-20"
+              style={{
                 color: ledColor,
+                backgroundColor: "rgb(24, 24, 27)",
+                border: "1px solid rgb(39, 39, 42)",
                 textShadow
               }}
             >
               {label}
-            </span>
+            </div>
           )}
         </div>
-
+      )}
+      <div className="flex items-center relative pl-4">
         <div className="relative flex-1 flex flex-col">
           <div className="relative h-8 flex items-center">
             <div className="relative w-full h-4 bg-muted border border-border rounded-sm">
               <div className="absolute inset-x-1 inset-y-1 bg-background rounded-[2px]" />
-              
-              <div 
+
+              <div
                 className={cn(
                   "absolute top-1/2 w-4 h-4 pointer-events-none",
                   isActive && "shadow-[0_0_6px_rgba(52,211,153,0.25)]",
                   isAnimating && "transition-all duration-300 ease-out"
                 )}
-                style={{ 
+                style={{
                   left: `${percentage}%`,
                   transform: "translate(-50%, -50%)"
                 }}
               >
-                <div 
+                <div
                   className="absolute inset-0 rounded-sm bg-muted-foreground"
                   style={{
                     boxShadow: "0 1px 2px rgba(0,0,0,0.5)"
@@ -156,12 +166,12 @@ export function Slider({
                 const position = index / 16
                 const isLong = index % 8 === 0
                 const isMedium = index % 4 === 0 && !isLong
-                
+
                 const height = isLong ? "h-3" : isMedium ? "h-2" : "h-1"
                 const isLit = (value - min) / (max - min) >= position
-                
+
                 const unitIndex = isLong ? (index === 0 ? 0 : index === 8 ? 1 : 2) : -1
-                
+
                 return (
                   <div
                     key={index}

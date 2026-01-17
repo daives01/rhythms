@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import { Gauge, Signal, Volume2 } from "lucide-react"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { Button } from "@/components/ui/button"
@@ -67,7 +68,7 @@ const calculateBPMColor = (bpm: number): string => {
   const minBpm = 60
   const maxBpm = 180
   const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
-  
+
   if (normalized <= 0.5) {
     const p = normalized / 0.5
     const r = Math.round(52 + p * (251 - 52))
@@ -178,24 +179,18 @@ export function Game() {
             {/* Left column: Title */}
             <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
               <h2
-                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0"
-                style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+                style={{ letterSpacing: "0.1em" }}
               >
                 challenge
               </h2>
-              <p
-                className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up opacity-0"
-                style={{ animationDelay: "0.15s" }}
-              >
+              <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
                 Someone sent you a rhythm challenge
               </p>
             </div>
 
             {/* Right column: Challenge panel */}
-            <PanelContainer
-              className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.2s" }}
-            >
+            <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
               {/* Challenge specs */}
               <div className="p-6 flex items-center justify-center gap-6">
                 <div className="text-center">
@@ -228,7 +223,8 @@ export function Game() {
                   min={0}
                   max={1}
                   step={0.01}
-                  label="Play"
+                  icon={Volume2}
+                  label="Monitor"
                   color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
                   units={["0%", "50%", "100%"]}
                 />
@@ -255,8 +251,7 @@ export function Game() {
             {/* Go to menu link */}
             <button
               onClick={() => setSearchParams({})}
-              className="absolute bottom-4 text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.4s" }}
+              className="absolute bottom-4 text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up"
             >
               Go to menu instead
             </button>
@@ -265,30 +260,29 @@ export function Game() {
 
         {/* Normal Menu */}
         {!showChallengeLanding && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full">
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
             {/* Left column: Title */}
             <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
-              <h1 
-                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0" 
-                style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              <h1
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+                style={{ letterSpacing: "0.1em" }}
               >
                 rhythms
               </h1>
             </div>
 
             {/* Right column: Mixer panel */}
-            <PanelContainer
-              className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.2s" }}
-            >
+            <PanelContainer className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up">
               {/* Fader controls */}
-              <div className="p-6 flex flex-col gap-3">
+              <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
+                <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
                 <Slider
                   value={bpm}
                   onValueChange={setBpm}
                   min={60}
                   max={180}
                   step={5}
+                  icon={Gauge}
                   label="BPM"
                   color={calculateBPMColor(bpm)}
                   units={["60", "120", "180"]}
@@ -299,6 +293,7 @@ export function Game() {
                   min={0}
                   max={1}
                   step={0.01}
+                  icon={Signal}
                   label="Level"
                   color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
                   units={["EASY", "NORMAL", "HARD"]}
@@ -310,7 +305,8 @@ export function Game() {
                   min={0}
                   max={1}
                   step={0.01}
-                  label="Play"
+                  icon={Volume2}
+                  label="Monitor"
                   color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
                   units={["0%", "50%", "100%"]}
                 />
@@ -350,6 +346,7 @@ export function Game() {
                 </div>
               </div>
             </PanelContainer>
+
           </div>
         )}
 

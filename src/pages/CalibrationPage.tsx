@@ -3,12 +3,14 @@ import { CalibrationScreen } from "@/components/CalibrationScreen"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 
+const DEFAULT_LATENCY_OFFSET = 25
+
 function loadLatencyOffset(): number {
   try {
     const stored = localStorage.getItem(LATENCY_OFFSET_KEY)
-    return stored ? parseInt(stored, 10) : 0
+    return stored ? parseInt(stored, 10) : DEFAULT_LATENCY_OFFSET
   } catch {
-    return 0
+    return DEFAULT_LATENCY_OFFSET
   }
 }
 

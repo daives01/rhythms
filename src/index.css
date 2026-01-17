@@ -240,6 +240,8 @@
     overflow-x: hidden;
     /* Enable smooth scrolling within app */
     -webkit-overflow-scrolling: touch;
+    /* Reveal once CSS is loaded (hidden in index.html) */
+    visibility: visible !important;
   }
 
   /* Subtle noise texture overlay */

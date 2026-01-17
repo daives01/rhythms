@@ -12,13 +12,14 @@ import { decodeChallenge } from "@/lib/random"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
+const DEFAULT_LATENCY_OFFSET = 25
 
 function loadLatencyOffset(): number {
   try {
     const stored = localStorage.getItem(LATENCY_OFFSET_KEY)
-    return stored ? parseInt(stored, 10) : 0
+    return stored ? parseInt(stored, 10) : DEFAULT_LATENCY_OFFSET
   } catch {
-    return 0
+    return DEFAULT_LATENCY_OFFSET
   }
 }
 
@@ -319,7 +320,7 @@ export function PlayPage() {
         >
           {/* Count-in overlay */}
           {phase === "countIn" && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 z-10 flex items-end justify-center pb-24 pointer-events-none">
               <div className="relative flex items-center justify-center">
                 {countInBeat && (
                   <>
@@ -337,9 +338,6 @@ export function PlayPage() {
                 <div
                   key={countInBeat}
                   className="text-7xl landscape:text-5xl font-display font-bold text-primary animate-count-pulse leading-none"
-                  style={{
-                    textShadow: "0 0 60px rgba(245,158,11,0.6), 0 0 100px rgba(245,158,11,0.3)",
-                  }}
                 >
                   {countInBeat ?? ""}
                 </div>
