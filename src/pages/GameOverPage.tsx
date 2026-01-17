@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react"
-import { useParams, useNavigate, useLocation } from "react-router-dom"
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
+import { RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
+import { transportEngine } from "@/engines/TransportEngine"
 
 const SETTINGS_KEY = "rhythm-settings"
 
@@ -58,18 +61,28 @@ const calculateScore = (
   return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
 }
 
+function getShareUrl(challenge: string): string {
+  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  const baseUrl = isLocalhost
+    ? `${window.location.protocol}//${window.location.host}`
+    : "https://rhythms.daniel-ives.com"
+  return `${baseUrl}?challenge=${challenge}`
+}
+
 interface LocationState {
   score: GameScore
   gameOverReason: "miss" | "extra"
-  bpm: number
-  difficulty: Difficulty
 }
 
 export function GameOverPage() {
-  const { seed } = useParams<{ seed: string }>()
+  const [searchParams] = useSearchParams()
+  const challengeParam = searchParams.get("challenge")
+  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
+
   const navigate = useNavigate()
   const location = useLocation()
   const [canRestart, setCanRestart] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const state = location.state as LocationState | null
   const settings = loadSettings()
@@ -77,18 +90,23 @@ export function GameOverPage() {
   // Use state from navigation or fall back to defaults
   const score = state?.score ?? { barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 }
   const gameOverReason = state?.gameOverReason ?? "miss"
-  const bpm = state?.bpm ?? settings.bpm
-  const difficulty = state?.difficulty ?? getDifficultyFromValue(settings.difficultyValue)
+
+  // Get game settings from challenge data or fall back to user settings
+  const bpm = challengeData?.bpm ?? settings.bpm
+  const difficulty = challengeData
+    ? getDifficultyFromValue(challengeData.difficulty)
+    : getDifficultyFromValue(settings.difficultyValue)
+  const tuplets = challengeData?.tuplets ?? settings.includeTuplets
 
   const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
 
-  // Prevent accidental restart - delay before Play Again is active
+  // Prevent accidental restart - delay before buttons are active
   useEffect(() => {
     const timer = setTimeout(() => setCanRestart(true), 800)
     return () => clearTimeout(timer)
   }, [])
 
-  // Handle Enter to restart
+  // Handle Enter to play again (new seed)
   useEffect(() => {
     if (!canRestart) return
 
@@ -99,14 +117,39 @@ export function GameOverPage() {
     }
     window.addEventListener("keydown", handleEnterRestart)
     return () => window.removeEventListener("keydown", handleEnterRestart)
-  }, [canRestart, seed])
+  }, [canRestart])
 
-  const handlePlayAgain = () => {
-    navigate("/", { state: { playSeed: seed } })
+  // Retry with same challenge
+  const handleRetry = () => {
+    if (!challengeParam) return
+    // Unlock audio in click handler context (required for iOS/Safari)
+    transportEngine.unlockAudio()
+    navigate(`/play?challenge=${challengeParam}`)
   }
 
-  const handleMenu = () => {
+  // Play again - go back to menu
+  const handlePlayAgain = () => {
     navigate("/")
+  }
+
+  const handleCopyLink = async () => {
+    if (!challengeParam) return
+    const url = getShareUrl(challengeParam)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea")
+      textArea.value = url
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   return (
@@ -163,10 +206,10 @@ export function GameOverPage() {
               <span>{bpm} BPM</span>
               <span>·</span>
               <span>{difficultyLabels[difficulty]}</span>
-              {seed && (
+              {tuplets && (
                 <>
                   <span>·</span>
-                  <span className="font-mono">{seed}</span>
+                  <span>Tuplets</span>
                 </>
               )}
             </div>
@@ -174,22 +217,62 @@ export function GameOverPage() {
 
           {/* Buttons */}
           <div className="flex flex-col items-center gap-2 w-full max-w-[200px] animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s" }}>
-            <Button
-              size="default"
-              onClick={handlePlayAgain}
-              disabled={!canRestart}
-              className={cn("w-full", !canRestart && "opacity-50")}
-            >
-              Play Again
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleMenu}
-              className="w-full text-muted-foreground/70 hover:text-foreground"
-            >
-              Menu
-            </Button>
+            {/* Main action row: Retry + Play Again */}
+            <div className="flex items-center gap-2 w-full">
+              {/* Retry button (icon) */}
+              <div className="relative group">
+                <button
+                  onClick={handleRetry}
+                  disabled={!canRestart || !challengeParam}
+                  className={cn(
+                    "p-2.5 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-colors",
+                    (!canRestart || !challengeParam) && "opacity-50 cursor-not-allowed"
+                  )}
+                  aria-label="Retry same challenge"
+                >
+                  <RotateCcw className="w-4 h-4 text-muted-foreground" />
+                </button>
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-popover border border-border rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                  Retry same
+                </div>
+              </div>
+
+              {/* Play Again button */}
+              <Button
+                size="default"
+                onClick={handlePlayAgain}
+                disabled={!canRestart}
+                className={cn("flex-1", !canRestart && "opacity-50")}
+              >
+                Play Again
+              </Button>
+            </div>
+
+            {/* Copy link button */}
+            {challengeParam && (
+              <button
+                onClick={handleCopyLink}
+                className={cn(
+                  "flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg",
+                  "border border-border/50 bg-card/30 hover:bg-card/50 transition-colors",
+                  "text-sm text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-4 h-4 text-green-500" />
+                    <span className="text-green-500">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copy challenge link</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <a
               href="https://buymeacoffee.com/danielives"
               target="_blank"

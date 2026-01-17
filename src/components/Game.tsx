@@ -1,16 +1,11 @@
-import { useState, useEffect, useRef } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
-import type { GameState, GameScore, RuntimeBar, HitResult, Difficulty } from "@/types"
+import { useState, useEffect } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
-import { rhythmBuffer } from "@/engines/RhythmEngine"
-import { judgeEngine } from "@/engines/JudgeEngine"
-import { NotationRenderer } from "./NotationRenderer"
 import { Button } from "@/components/ui/button"
 import { Knob } from "@/components/ui/knob"
 import { AmpSwitch } from "@/components/ui/amp-switch"
-import { useKeyboardInput } from "@/hooks/useKeyboardInput"
-import { cn } from "@/lib/utils"
-import { generateSeed } from "@/lib/random"
+import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
@@ -51,15 +46,6 @@ function saveSettings(settings: Partial<StoredSettings>): void {
   }
 }
 
-function loadLatencyOffset(): number {
-  try {
-    const stored = localStorage.getItem(LATENCY_OFFSET_KEY)
-    return stored ? parseInt(stored, 10) : 0
-  } catch {
-    return 0
-  }
-}
-
 function hasCalibrated(): boolean {
   try {
     return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
@@ -68,52 +54,28 @@ function hasCalibrated(): boolean {
   }
 }
 
-interface LocationState {
-  playSeed?: string
+const getDifficultyFromValue = (v: number): Difficulty => {
+  if (v < 0.33) return "easy"
+  if (v < 0.67) return "medium"
+  return "hard"
 }
 
 export function Game() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const locationState = location.state as LocationState | null
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [gameState, setGameState] = useState<GameState>("idle")
-  const [bars, setBars] = useState<RuntimeBar[]>([])
-  const [score, setScore] = useState<GameScore>({
-    barsSurvived: 0,
-    beatsSurvived: 0,
-    totalHits: 0,
-    timeSurvived: 0,
-  })
-
-  const [currentBar, setCurrentBar] = useState(0)
-  const [currentBeat, setCurrentBeat] = useState(0)
-  const [beatFraction, setBeatFraction] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
+  // Check for challenge in URL (shared challenge link)
+  const challengeParam = searchParams.get("challenge")
+  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
 
   const [bpm, setBpm] = useState(() => loadSettings().bpm)
   const [difficultyValue, setDifficultyValue] = useState(() => loadSettings().difficultyValue)
-
-  const getDifficultyFromValue = (v: number): Difficulty => {
-    if (v < 0.33) return "easy"
-    if (v < 0.67) return "medium"
-    return "hard"
-  }
   const difficulty = getDifficultyFromValue(difficultyValue)
 
-  const [lastResult, setLastResult] = useState<HitResult | null>(null)
-  const feedbackTimeout = useRef<number | null>(null)
-
-  const [countInBeat, setCountInBeat] = useState<number | null>(null)
-  const [latencyOffset] = useState(loadLatencyOffset)
   const [isCalibrated] = useState(hasCalibrated)
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
   const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
-  const animationFrame = useRef<number | null>(null)
-
-  // Current game seed
-  const currentSeed = useRef<string | null>(null)
 
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
@@ -149,231 +111,33 @@ export function Game() {
   }
 
   useEffect(() => {
-    judgeEngine.setLatencyOffset(latencyOffset)
-  }, [latencyOffset])
-
-  useEffect(() => {
     saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
   }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
 
-  const showFeedback = (result: HitResult) => {
-    if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current)
-    setLastResult(result)
-    feedbackTimeout.current = window.setTimeout(() => {
-      setLastResult(null)
-    }, 250)
-  }
-
-  const handleHit = () => {
-    if (gameState !== "running") return
-    judgeEngine.onHit()
-  }
-
-  const stopGame = () => {
-    transportEngine.stop()
-    judgeEngine.stop()
-    setGameState("idle")
-    setCountInBeat(null)
-    if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
-  }
-
-  useKeyboardInput(handleHit, gameState === "running" && !groupMode)
-
-  useEffect(() => {
-    if (!groupMode || gameState !== "running") return
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        stopGame()
-      }
+  const startGame = (challenge?: ChallengeData) => {
+    // Create challenge from settings if not provided
+    const gameChallenge: ChallengeData = challenge ?? {
+      seed: generateSeed(),
+      bpm,
+      difficulty: difficultyValue,
+      tuplets: includeTuplets,
     }
-    window.addEventListener("keydown", handleEscape)
-    return () => window.removeEventListener("keydown", handleEscape)
-  }, [groupMode, gameState])
 
-  const startGame = async (seed?: string) => {
-    // Use provided seed or generate a new one
-    const gameSeed = seed ?? generateSeed()
-    currentSeed.current = gameSeed
-
-    // CRITICAL: Unlock audio FIRST, synchronously within the click handler.
+    // Unlock audio in click handler context (required for iOS/Safari)
     transportEngine.unlockAudio()
 
-    transportEngine.setBpm(bpm)
-    rhythmBuffer.setDifficulty(difficulty)
-    rhythmBuffer.setIncludeTuplets(includeTuplets)
-    const toleranceMap: Record<Difficulty, number> = { easy: 130, medium: 100, hard: 70 }
-    judgeEngine.setTolerance(toleranceMap[difficulty])
-    judgeEngine.setBpm(bpm)
-    judgeEngine.setLatencyOffset(latencyOffset)
-
-    // Set play-along volume
-    transportEngine.setRhythmSoundVolume(playAlongVolume)
-
-    setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
-
-    // Reset position state to prevent scroll position issues on repeat
-    setCurrentBar(0)
-    setCurrentBeat(0)
-    setBeatFraction(0)
-    setCurrentTime(0)
-
-    setGameState("countIn")
-    setCountInBeat(null)
-
-    await transportEngine.start()
-
-    const initialBars = rhythmBuffer.initialize(gameSeed)
-    setBars(initialBars)
-
-    // Pass initial onsets to transport engine for sound playback
-    if (playAlongVolume > 0) {
-      const allOnsets = initialBars.flatMap((bar) => bar.onsets)
-      transportEngine.setRhythmOnsets(allOnsets)
-    }
+    // Navigate to play page with challenge
+    const encoded = encodeChallenge(gameChallenge)
+    navigate(`/play?challenge=${encoded}`)
   }
 
-  // Auto-start if coming from game over with playSeed
-  useEffect(() => {
-    if (locationState?.playSeed && gameState === "idle") {
-      // Clear the state so we don't auto-start again
-      window.history.replaceState({}, document.title)
-      startGame(locationState.playSeed)
-    }
-  }, [locationState?.playSeed])
-
-  useEffect(() => {
-    const unsubBeat = transportEngine.onBeat((beat, _bar, isCountIn) => {
-      if (isCountIn) {
-        setCountInBeat(beat + 1)
-      } else {
-        setCountInBeat(null)
-        if (gameState === "countIn") {
-          setGameState("running")
-          if (!groupMode) {
-            judgeEngine.start()
-          }
-        }
-      }
-    })
-
-    const unsubJudge = judgeEngine.onJudge((result) => {
-      showFeedback(result)
-      if (result === "hit") {
-        setScore((s) => ({ ...s, totalHits: s.totalHits + 1 }))
-      }
-    })
-
-    const unsubGameOver = judgeEngine.onGameOver((reason) => {
-      transportEngine.stop()
-      if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
-
-      // Navigate to game over page with the seed
-      const seed = currentSeed.current ?? generateSeed()
-      navigate(`/${seed}/gameOver`, {
-        state: {
-          score: { ...score, totalHits: score.totalHits },
-          gameOverReason: reason,
-          bpm,
-          difficulty,
-        },
-      })
-    })
-
-    return () => {
-      unsubBeat()
-      unsubJudge()
-      unsubGameOver()
-    }
-  }, [gameState, groupMode, navigate, score, bpm, difficulty])
-
-  useEffect(() => {
-    if (gameState !== "running" && gameState !== "countIn") return
-
-    const updatePosition = () => {
-      const pos = transportEngine.getCurrentPosition()
-      if (pos) {
-        setCurrentBar(pos.bar)
-        setCurrentBeat(pos.beat)
-        setBeatFraction(pos.beatFraction)
-        setCurrentTime(transportEngine.now())
-
-        setScore((s) => ({
-          ...s,
-          barsSurvived: pos.bar,
-          beatsSurvived: pos.bar * 4 + pos.beat,
-          timeSurvived: (pos.bar * 4 + pos.beat + pos.beatFraction) * (60 / bpm),
-        }))
-
-        if (rhythmBuffer.advanceIfNeeded(pos.bar)) {
-          const newBars = [...rhythmBuffer.getBars()]
-          setBars(newBars)
-          // Update onsets for rhythm sound playback
-          if (playAlongVolume > 0) {
-            const allOnsets = newBars.flatMap((bar) => bar.onsets)
-            transportEngine.setRhythmOnsets(allOnsets)
-          }
-        }
-      }
-
-      animationFrame.current = requestAnimationFrame(updatePosition)
-    }
-
-    animationFrame.current = requestAnimationFrame(updatePosition)
-
-    return () => {
-      if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
-    }
-  }, [gameState, bpm, playAlongVolume])
-
-  useEffect(() => {
-    return () => {
-      transportEngine.stop()
-      judgeEngine.stop()
-      if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
-      if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current)
-    }
-  }, [])
-
-  // Prevent all problematic touch behaviors during active gameplay
-  useEffect(() => {
-    if (gameState !== "running" && gameState !== "countIn") return
-
-    const preventTouchDefaults = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
-        e.preventDefault()
-      }
-    }
-
-    const preventGestureStart = (e: Event) => {
-      e.preventDefault()
-    }
-
-    let lastTouchEnd = 0
-    const preventDoubleTapZoom = (e: TouchEvent) => {
-      const now = Date.now()
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault()
-      }
-      lastTouchEnd = now
-    }
-
-    document.addEventListener("touchmove", preventTouchDefaults, { passive: false })
-    document.addEventListener("touchend", preventDoubleTapZoom, { passive: false })
-    document.addEventListener("gesturestart", preventGestureStart)
-    document.addEventListener("gesturechange", preventGestureStart)
-    document.addEventListener("gestureend", preventGestureStart)
-
-    return () => {
-      document.removeEventListener("touchmove", preventTouchDefaults)
-      document.removeEventListener("touchend", preventDoubleTapZoom)
-      document.removeEventListener("gesturestart", preventGestureStart)
-      document.removeEventListener("gesturechange", preventGestureStart)
-      document.removeEventListener("gestureend", preventGestureStart)
-    }
-  }, [gameState])
-
   const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
+
+  // Show challenge landing page if there's a valid challenge in URL
+  const showChallengeLanding = !!challengeData
+
+  // Get display values for challenge
+  const challengeDifficulty = challengeData ? getDifficultyFromValue(challengeData.difficulty) : difficulty
 
   return (
     <div
@@ -385,7 +149,103 @@ export function Game() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
-        {gameState === "idle" && (
+        {/* Challenge Landing Page */}
+        {showChallengeLanding && challengeData && (
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
+            {/* Left: Title + buttons (landscape) / Top section (portrait) */}
+            <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
+              <div className="text-center animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
+                <h2 className="text-3xl font-display font-bold tracking-tight mb-1">
+                  <span className="text-gradient">Challenge</span>
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  Someone sent you a rhythm challenge!
+                </p>
+              </div>
+
+              {/* Challenge info */}
+              <div className="flex items-center gap-3 text-sm text-muted-foreground animate-fade-in-up opacity-0" style={{ animationDelay: "0.15s" }}>
+                <span className="font-medium">{challengeData.bpm} BPM</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="font-medium">{difficultyLabels[challengeDifficulty]}</span>
+                {challengeData.tuplets && (
+                  <>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="font-medium">Tuplets</span>
+                  </>
+                )}
+              </div>
+
+              {/* Buttons - only in landscape */}
+              <div className="hidden landscape:flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
+                <Button
+                  size="lg"
+                  onClick={() => startGame(challengeData)}
+                  className="px-12 font-semibold animate-pulse-glow"
+                >
+                  Start Challenge
+                </Button>
+                <button
+                  onClick={() => setSearchParams({})}
+                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
+                >
+                  Go to menu instead
+                </button>
+              </div>
+            </div>
+
+            {/* Settings Panel - simplified for challenge */}
+            <div
+              className="w-full landscape:flex-1 landscape:max-w-md rounded-2xl overflow-hidden animate-fade-in-up opacity-0"
+              style={{
+                animationDelay: "0.2s",
+                background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.5)",
+                border: "1px solid rgba(60,60,60,0.5)",
+              }}
+            >
+              <div className="p-4 landscape:p-3">
+                {/* Practice toggle + Play Along side by side */}
+                <div className="flex justify-center items-center gap-8">
+                  <AmpSwitch
+                    label="Practice"
+                    checked={groupMode}
+                    onCheckedChange={setGroupMode}
+                  />
+                  <Knob
+                    label="Play Along"
+                    value={playAlongVolume}
+                    onValueChange={setPlayAlongVolume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Portrait-only buttons */}
+            <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
+              <Button
+                size="lg"
+                onClick={() => startGame(challengeData)}
+                className="px-12 font-semibold animate-pulse-glow"
+              >
+                Start Challenge
+              </Button>
+              <button
+                onClick={() => setSearchParams({})}
+                className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                Go to menu instead
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Normal Menu */}
+        {!showChallengeLanding && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
             {/* Left: Title + buttons (landscape) / Top section (portrait) */}
             <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
@@ -540,90 +400,6 @@ export function Game() {
                   Don't show again
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {(gameState === "countIn" || gameState === "running") && (
-          <div
-            className={cn(
-              "flex-1 flex flex-col items-center justify-center p-3 landscape:p-2 gap-3 landscape:gap-2 w-full animate-fade-in relative",
-              !groupMode && gameState === "running" && "cursor-pointer select-none"
-            )}
-            onPointerDown={!groupMode && gameState === "running" ? (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              handleHit()
-            } : undefined}
-            style={{
-              touchAction: "none",
-              WebkitTouchCallout: "none",
-              WebkitUserSelect: "none",
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            {/* Count-in overlay */}
-            {gameState === "countIn" && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                <div className="relative flex items-center justify-center">
-                  {countInBeat && (
-                    <>
-                      <div
-                        key={`ring1-${countInBeat}`}
-                        className="absolute w-32 landscape:w-24 h-32 landscape:h-24 rounded-full border-primary animate-count-ring"
-                      />
-                      <div
-                        key={`ring2-${countInBeat}`}
-                        className="absolute w-32 landscape:w-24 h-32 landscape:h-24 rounded-full border-primary/60 animate-count-ring"
-                        style={{ animationDelay: "0.1s" }}
-                      />
-                    </>
-                  )}
-                  <div
-                    key={countInBeat}
-                    className="text-7xl landscape:text-5xl font-display font-bold text-primary animate-count-pulse leading-none"
-                    style={{
-                      textShadow: "0 0 60px rgba(245,158,11,0.6), 0 0 100px rgba(245,158,11,0.3)",
-                    }}
-                  >
-                    {countInBeat ?? ""}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Notation Panel */}
-            <div
-              className={cn(
-                "w-full max-w-4xl rounded-2xl p-3 landscape:p-2 border transition-opacity duration-300",
-                "bg-gradient-to-b from-card/90 to-card/60",
-                "border-border/40",
-                "shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_4px_20px_-4px_rgba(0,0,0,0.3)]",
-                "backdrop-blur-sm pointer-events-none",
-                gameState === "countIn" && "opacity-30"
-              )}
-            >
-              <NotationRenderer
-                bars={bars}
-                currentBar={currentBar}
-                currentBeat={currentBeat}
-                beatFraction={beatFraction}
-                currentTime={currentTime}
-              />
-            </div>
-
-            {/* Feedback / Stop */}
-            <div className="flex items-center justify-center h-8">
-              {groupMode ? (
-                <button
-                  onClick={stopGame}
-                  className="py-1 px-4 text-sm font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                >
-                  Stop
-                </button>
-              ) : lastResult === "miss" ? (
-                <span className="text-xl font-bold text-miss">Miss</span>
-              ) : null}
             </div>
           </div>
         )}
