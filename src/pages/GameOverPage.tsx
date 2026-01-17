@@ -4,7 +4,7 @@ import { RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
+import { decodeChallenge } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
 
 const SETTINGS_KEY = "rhythm-settings"
@@ -162,81 +162,80 @@ export function GameOverPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
-        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:p-3 gap-4 landscape:gap-8 w-full max-w-md landscape:max-w-3xl mx-auto relative">
-          {/* Score section */}
-          <div className="flex flex-col items-center landscape:items-end landscape:flex-1 relative z-10">
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-6 landscape:py-3 gap-6 landscape:gap-8 w-full max-w-lg landscape:max-w-3xl mx-auto relative">
+          {/* Left: Score section */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 relative z-10">
             {/* Game Over Title */}
             <h2
-              className="text-2xl font-display font-bold text-miss tracking-tight animate-fade-in-up opacity-0"
-              style={{ animationDelay: "0.15s", textShadow: "0 0 40px rgba(239,68,68,0.4)" }}
+              className="text-xl font-display font-bold text-foreground tracking-tight animate-fade-in-up opacity-0"
+              style={{ animationDelay: "0.15s" }}
             >
               Game Over
             </h2>
-            <p className="text-muted-foreground/60 text-xs mb-3 landscape:mb-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s" }}>
+            <p className="text-muted-foreground/60 text-xs mb-4 landscape:mb-3 animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s" }}>
               {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
             </p>
 
-            {/* Score */}
-            <div
-              className="text-5xl landscape:text-4xl font-display tabular-nums text-primary animate-score-reveal opacity-0"
-              style={{ animationDelay: "0.3s", textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
+            {/* Score display panel */}
+            <div 
+              className="border border-border bg-muted p-4 landscape:p-3 animate-score-reveal opacity-0 w-full landscape:w-auto"
+              style={{ animationDelay: "0.3s" }}
             >
-              {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
-            </div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-3 landscape:mb-2 animate-fade-in opacity-0" style={{ animationDelay: "0.35s" }}>
-              Final Score
-            </div>
-
-            {/* Stats */}
-            <div className="flex items-center gap-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.45s" }}>
-              {[
-                { value: score.totalHits, label: "hits" },
-                { value: `${score.timeSurvived.toFixed(1)}s`, label: "time" },
-                { value: score.barsSurvived, label: "bars" },
-              ].map((stat) => (
-                <div key={stat.label} className="text-center">
-                  <div className="text-lg font-bold text-foreground tabular-nums">{stat.value}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">{stat.label}</div>
+              <div className="text-center landscape:text-left">
+                <div className="text-4xl landscape:text-3xl font-display tabular-nums text-foreground">
+                  {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
                 </div>
-              ))}
-            </div>
+                <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 mt-1">
+                  Final Score
+                </div>
+              </div>
 
-            {/* Settings */}
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground/40 mt-2 animate-fade-in opacity-0" style={{ animationDelay: "0.5s" }}>
-              <span>{bpm} BPM</span>
-              <span>·</span>
-              <span>{difficultyLabels[difficulty]}</span>
-              {tuplets && (
-                <>
-                  <span>·</span>
-                  <span>Tuplets</span>
-                </>
-              )}
+              {/* Stats row */}
+              <div className="flex items-center justify-center landscape:justify-start gap-6 mt-4 pt-3 border-t border-border">
+                {[
+                  { value: score.totalHits, label: "hits" },
+                  { value: `${score.timeSurvived.toFixed(1)}s`, label: "time" },
+                  { value: score.barsSurvived, label: "bars" },
+                ].map((stat) => (
+                  <div key={stat.label} className="text-center landscape:text-left">
+                    <div className="text-base font-bold text-foreground tabular-nums">{stat.value}</div>
+                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Settings meta */}
+              <div className="flex items-center justify-center landscape:justify-start gap-3 text-[10px] text-muted-foreground/40 mt-3 pt-3 border-t border-border">
+                <span className="tabular-nums">{bpm} BPM</span>
+                <span className="w-px h-2 bg-border" />
+                <span>{difficultyLabels[difficulty]}</span>
+                {tuplets && (
+                  <>
+                    <span className="w-px h-2 bg-border" />
+                    <span>Tuplets</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Buttons */}
-          <div className="flex flex-col items-center gap-2 w-full max-w-[200px] animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s" }}>
-            {/* Main action row: Retry + Play Again */}
+          {/* Right: Actions */}
+          <div className="flex flex-col items-center landscape:items-start gap-2 w-full landscape:w-48 animate-fade-in-up opacity-0" style={{ animationDelay: "0.5s" }}>
+            {/* Main action row */}
             <div className="flex items-center gap-2 w-full">
-              {/* Retry button (icon) */}
-              <div className="relative group">
-                <button
-                  onClick={handleRetry}
-                  disabled={!canRestart || !challengeParam}
-                  className={cn(
-                    "p-2.5 rounded-lg border border-border/50 bg-card/50 hover:bg-card transition-colors",
-                    (!canRestart || !challengeParam) && "opacity-50 cursor-not-allowed"
-                  )}
-                  aria-label="Retry same challenge"
-                >
-                  <RotateCcw className="w-4 h-4 text-muted-foreground" />
-                </button>
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 text-xs bg-popover border border-border rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                  Retry same
-                </div>
-              </div>
+              {/* Retry button */}
+              <button
+                onClick={handleRetry}
+                disabled={!canRestart || !challengeParam}
+                className={cn(
+                  "p-2.5 border border-border bg-muted hover:bg-muted/80 transition-colors",
+                  (!canRestart || !challengeParam) && "opacity-50 cursor-not-allowed"
+                )}
+                aria-label="Retry same challenge"
+                title="Retry same"
+              >
+                <RotateCcw className="w-4 h-4 text-muted-foreground" />
+              </button>
 
               {/* Play Again button */}
               <Button
@@ -254,19 +253,19 @@ export function GameOverPage() {
               <button
                 onClick={handleCopyLink}
                 className={cn(
-                  "flex items-center justify-center gap-2 w-full py-2 px-3 rounded-lg",
-                  "border border-border/50 bg-card/30 hover:bg-card/50 transition-colors",
-                  "text-sm text-muted-foreground hover:text-foreground"
+                  "flex items-center justify-center gap-2 w-full py-2 px-3",
+                  "border border-border bg-muted hover:bg-muted/80 transition-colors",
+                  "text-xs text-muted-foreground hover:text-foreground"
                 )}
               >
                 {copied ? (
                   <>
-                    <Check className="w-4 h-4 text-green-500" />
-                    <span className="text-green-500">Copied!</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-3.5 h-3.5" />
                     <span>Copy challenge link</span>
                   </>
                 )}
@@ -277,28 +276,13 @@ export function GameOverPage() {
               href="https://buymeacoffee.com/danielives"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors mt-1"
+              className="flex items-center gap-1 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors mt-2"
             >
               <span>♡</span> Support the dev
             </a>
           </div>
         </div>
       </main>
-
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div
-          className="absolute -top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[600px] opacity-30"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.15) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          className="absolute -bottom-1/4 right-0 w-[600px] h-[400px] opacity-20"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.1) 0%, transparent 70%)",
-          }}
-        />
-      </div>
     </div>
   )
 }

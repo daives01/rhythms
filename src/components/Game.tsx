@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { Button } from "@/components/ui/button"
-import { Knob } from "@/components/ui/knob"
+import { SliderPrimitive } from "@/components/ui/slider-primitive"
 import { AmpSwitch } from "@/components/ui/amp-switch"
+import { SoundboardButton } from "@/components/ui/soundboard-button"
+import { PlayButton } from "@/components/ui/play-button"
 import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
@@ -58,6 +60,26 @@ const getDifficultyFromValue = (v: number): Difficulty => {
   if (v < 0.33) return "easy"
   if (v < 0.67) return "medium"
   return "hard"
+}
+
+const calculateBPMColor = (bpm: number): string => {
+  const minBpm = 60
+  const maxBpm = 180
+  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
+  
+  if (normalized <= 0.5) {
+    const p = normalized / 0.5
+    const r = Math.round(52 + p * (251 - 52))
+    const g = Math.round(211 + p * (191 - 211))
+    const b = Math.round(153 + p * (36 - 153))
+    return `rgb(${r}, ${g}, ${b})`
+  } else {
+    const p = (normalized - 0.5) / 0.5
+    const r = Math.round(251 + p * (248 - 251))
+    const g = Math.round(191 + p * (113 - 191))
+    const b = Math.round(36 + p * (113 - 36))
+    return `rgb(${r}, ${g}, ${b})`
+  }
 }
 
 export function Game() {
@@ -151,92 +173,90 @@ export function Game() {
       <main className="flex-1 flex flex-col relative overflow-auto">
         {/* Challenge Landing Page */}
         {showChallengeLanding && challengeData && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
-            {/* Left: Title + buttons (landscape) / Top section (portrait) */}
-            <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
-              <div className="text-center animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-                <h2 className="text-3xl font-display font-bold tracking-tight mb-1">
-                  <span className="text-gradient">Challenge</span>
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-6 landscape:py-3 gap-6 landscape:gap-8 max-w-lg landscape:max-w-4xl mx-auto w-full">
+            {/* Left column: Title + meta */}
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 gap-3">
+              <div className="text-center landscape:text-left animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
+                <h2 className="text-2xl landscape:text-xl font-display font-bold tracking-tight mb-1 text-foreground">
+                  Challenge
                 </h2>
-                <p className="text-muted-foreground text-sm">
-                  Someone sent you a rhythm challenge!
+                <p className="text-muted-foreground text-xs">
+                  Someone sent you a rhythm challenge
                 </p>
               </div>
 
-              {/* Challenge info */}
-              <div className="flex items-center gap-3 text-sm text-muted-foreground animate-fade-in-up opacity-0" style={{ animationDelay: "0.15s" }}>
-                <span className="font-medium">{challengeData.bpm} BPM</span>
-                <span className="text-muted-foreground/40">·</span>
+              {/* Challenge specs */}
+              <div 
+                className="flex items-center gap-4 text-xs text-muted-foreground animate-fade-in-up opacity-0 border border-border bg-muted px-4 py-2" 
+                style={{ animationDelay: "0.15s" }}
+              >
+                <span className="font-medium tabular-nums">{challengeData.bpm} BPM</span>
+                <span className="w-px h-3 bg-border" />
                 <span className="font-medium">{difficultyLabels[challengeDifficulty]}</span>
                 {challengeData.tuplets && (
                   <>
-                    <span className="text-muted-foreground/40">·</span>
+                    <span className="w-px h-3 bg-border" />
                     <span className="font-medium">Tuplets</span>
                   </>
                 )}
               </div>
 
-              {/* Buttons - only in landscape */}
-              <div className="hidden landscape:flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
+              {/* CTA - landscape only */}
+              <div className="hidden landscape:flex flex-col items-start gap-2 mt-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
                 <Button
                   size="lg"
                   onClick={() => startGame(challengeData)}
-                  className="px-12 font-semibold animate-pulse-glow"
+                  className="px-10 font-semibold"
                 >
                   Start Challenge
                 </Button>
                 <button
                   onClick={() => setSearchParams({})}
-                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
                 >
                   Go to menu instead
                 </button>
               </div>
             </div>
 
-            {/* Settings Panel - simplified for challenge */}
+            {/* Right column: Settings panel */}
             <div
-              className="w-full landscape:flex-1 landscape:max-w-md rounded-2xl overflow-hidden animate-fade-in-up opacity-0"
-              style={{
-                animationDelay: "0.2s",
-                background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.5)",
-                border: "1px solid rgba(60,60,60,0.5)",
-              }}
+              className="w-full landscape:w-80 landscape:shrink-0 overflow-hidden animate-fade-in-up opacity-0 border border-border bg-muted"
+              style={{ animationDelay: "0.2s" }}
             >
-              <div className="p-4 landscape:p-3">
-                {/* Practice toggle + Play Along side by side */}
-                <div className="flex justify-center items-center gap-8">
+              <div className="p-4 landscape:p-3 flex flex-col gap-3">
+                <SliderPrimitive
+                  value={playAlongVolume}
+                  onValueChange={setPlayAlongVolume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  label="Play"
+                  color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
+                  units={["0%", "50%", "100%"]}
+                />
+                <div className="pt-2 border-t border-border">
                   <AmpSwitch
                     label="Practice"
                     checked={groupMode}
                     onCheckedChange={setGroupMode}
                   />
-                  <Knob
-                    label="Play Along"
-                    value={playAlongVolume}
-                    onValueChange={setPlayAlongVolume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
-                  />
                 </div>
               </div>
             </div>
 
-            {/* Portrait-only buttons */}
+            {/* CTA - portrait only */}
             <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
               <Button
                 size="lg"
                 onClick={() => startGame(challengeData)}
-                className="px-12 font-semibold animate-pulse-glow"
+                className="px-10 font-semibold"
               >
                 Start Challenge
               </Button>
               <button
                 onClick={() => setSearchParams({})}
-                className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
               >
                 Go to menu instead
               </button>
@@ -246,75 +266,64 @@ export function Game() {
 
         {/* Normal Menu */}
         {!showChallengeLanding && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
-            {/* Left: Title + buttons (landscape) / Top section (portrait) */}
-            <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
-              <h2 className="text-3xl font-display font-bold tracking-tight animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-                <span className="text-gradient">Rhythms</span>
-              </h2>
-
-              {/* Buttons - only in landscape */}
-              <div className="hidden landscape:flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
-                <Button
-                  size="lg"
-                  onClick={() => startGame()}
-                  className="px-12 font-semibold animate-pulse-glow"
-                >
-                  Play
-                </Button>
-                <button
-                  onClick={() => navigate("/calibration")}
-                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
-                >
-                  {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
-                </button>
-              </div>
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full">
+            {/* Left column: Title */}
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+              <h1 
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up opacity-0" 
+                style={{ animationDelay: "0.1s", letterSpacing: "0.1em" }}
+              >
+                rhythms
+              </h1>
             </div>
 
-            {/* Settings Panel */}
+            {/* Right column: Mixer panel */}
             <div
-              className="w-full landscape:flex-1 landscape:max-w-md rounded-2xl overflow-hidden animate-fade-in-up opacity-0"
-              style={{
-                animationDelay: "0.2s",
-                background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -1px 0 rgba(0,0,0,0.5)",
-                border: "1px solid rgba(60,60,60,0.5)",
-              }}
+              className="w-full landscape:w-[480px] landscape:shrink-0 overflow-hidden animate-fade-in-up opacity-0 border border-border bg-muted"
+              style={{ animationDelay: "0.2s" }}
             >
-              <div className="p-4 landscape:p-2">
-                {/* Knobs row */}
-                <div className="flex justify-center gap-5 landscape:gap-3 mb-3 landscape:mb-1">
-                  <Knob
-                    label="Tempo"
-                    value={bpm}
-                    onValueChange={setBpm}
-                    min={60}
-                    max={180}
-                    step={5}
-                    valueFormatter={(v) => `${v}`}
-                  />
-                  <Knob
-                    label="Difficulty"
-                    value={difficultyValue}
-                    onValueChange={setDifficultyValue}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    valueFormatter={() => difficultyLabels[difficulty]}
-                  />
-                  <Knob
-                    label="Play Along"
-                    value={playAlongVolume}
-                    onValueChange={setPlayAlongVolume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    valueFormatter={(v) => v === 0 ? "Off" : `${Math.round(v * 100)}%`}
-                  />
-                </div>
+              {/* Fader controls */}
+              <div className="p-4 landscape:p-3 flex flex-col gap-3">
+                <SliderPrimitive
+                  value={bpm}
+                  onValueChange={setBpm}
+                  min={60}
+                  max={180}
+                  step={5}
+                  label="BPM"
+                  color={calculateBPMColor(bpm)}
+                  units={["60", "120", "180"]}
+                />
+                <SliderPrimitive
+                  value={difficultyValue}
+                  onValueChange={setDifficultyValue}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  label="Level"
+                  color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
+                  units={["EASY", "NORMAL", "HARD"]}
+                  snapPoints={[0, 0.5, 1]}
+                />
+                <SliderPrimitive
+                  value={playAlongVolume}
+                  onValueChange={setPlayAlongVolume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  label="Play"
+                  color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
+                  units={["0%", "50%", "100%"]}
+                />
+              </div>
 
-                {/* Switches row */}
-                <div className="flex justify-center gap-8 pt-3 landscape:pt-1 border-t border-zinc-800/50">
+              {/* Full-width divider */}
+              <div className="h-px bg-border w-full" />
+
+              {/* Controls row */}
+              <div className="flex items-stretch">
+                {/* Left group: switches + calibrate */}
+                <div className="flex-1 p-4 landscape:p-3 flex items-start justify-evenly">
                   <AmpSwitch
                     label="Practice"
                     checked={groupMode}
@@ -325,40 +334,34 @@ export function Game() {
                     checked={includeTuplets}
                     onCheckedChange={setIncludeTuplets}
                   />
+                  <SoundboardButton
+                    label="Calibrate"
+                    onClick={() => navigate("/calibration")}
+                    active={isCalibrated}
+                    warning={!isCalibrated}
+                  />
+                </div>
+
+                {/* Vertical divider - full height */}
+                <div className="w-px bg-border" />
+
+                {/* Right group: play */}
+                <div className="p-4 landscape:p-3 flex items-start justify-center">
+                  <PlayButton onClick={() => startGame()} />
                 </div>
               </div>
-            </div>
-
-            {/* Portrait-only buttons */}
-            <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
-              <Button
-                size="lg"
-                onClick={() => startGame()}
-                className="px-12 font-semibold animate-pulse-glow"
-              >
-                Play
-              </Button>
-              <button
-                onClick={() => navigate("/calibration")}
-                className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-              >
-                {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
-              </button>
             </div>
           </div>
         )}
 
         {/* iOS Ringer Warning Modal */}
         {showRingerWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
-              <div className="text-center mb-4">
-                <span className="text-4xl">🔔</span>
-              </div>
-              <h3 className="text-lg font-semibold text-center mb-2">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4">
+            <div className="bg-muted border border-border p-5 max-w-xs w-full animate-fade-in">
+              <h3 className="text-sm font-semibold text-foreground mb-2">
                 Not hearing anything?
               </h3>
-              <p className="text-sm text-muted-foreground text-center mb-6">
+              <p className="text-xs text-muted-foreground mb-5">
                 Make sure your ringer switch is on. iOS mutes web audio when your phone is in silent mode.
               </p>
               <div className="flex flex-col gap-2">
@@ -367,7 +370,7 @@ export function Game() {
                 </Button>
                 <button
                   onClick={() => dismissRingerWarning(true)}
-                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2"
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors py-2"
                 >
                   Don't show again
                 </button>
@@ -378,15 +381,12 @@ export function Game() {
 
         {/* Landscape Tip Modal */}
         {showLandscapeTip && !showRingerWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
-              <div className="text-center mb-4">
-                <span className="text-4xl">📱</span>
-              </div>
-              <h3 className="text-lg font-semibold text-center mb-2">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4">
+            <div className="bg-muted border border-border p-5 max-w-xs w-full animate-fade-in">
+              <h3 className="text-sm font-semibold text-foreground mb-2">
                 Try landscape mode
               </h3>
-              <p className="text-sm text-muted-foreground text-center mb-6">
+              <p className="text-xs text-muted-foreground mb-5">
                 Rotate your phone sideways for a better view of the music notation.
               </p>
               <div className="flex flex-col gap-2">
@@ -395,7 +395,7 @@ export function Game() {
                 </Button>
                 <button
                   onClick={() => dismissLandscapeTip(true)}
-                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-2"
+                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors py-2"
                 >
                   Don't show again
                 </button>
@@ -404,21 +404,6 @@ export function Game() {
           </div>
         )}
       </main>
-
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div
-          className="absolute -top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[600px] opacity-30"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.15) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          className="absolute -bottom-1/4 right-0 w-[600px] h-[400px] opacity-20"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.1) 0%, transparent 70%)",
-          }}
-        />
-      </div>
     </div>
   )
 }

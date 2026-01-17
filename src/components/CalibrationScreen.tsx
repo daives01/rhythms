@@ -152,26 +152,26 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start landscape:justify-center overflow-y-auto p-4 landscape:p-3 pt-safe pb-safe max-w-md landscape:max-w-2xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-start landscape:justify-center overflow-y-auto p-4 landscape:px-6 landscape:py-3 pt-safe pb-safe max-w-lg landscape:max-w-3xl mx-auto w-full">
       {phase === "intro" && (
         <div className="flex-1 flex flex-col items-center justify-center landscape:flex-row landscape:gap-8 w-full">
           <div className="landscape:flex-1 landscape:max-w-sm">
             <div className="text-center landscape:text-left mb-6 landscape:mb-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-2xl landscape:text-xl font-display font-bold mb-2">
-                <span className="text-gradient">Calibrate</span> Latency
+              <h2 className="text-xl font-display font-bold mb-2 text-foreground">
+                Calibrate Latency
               </h2>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-muted-foreground text-xs">
                 Tap along to {REQUIRED_TAPS} beats. We'll measure your timing to compensate for latency.
               </p>
             </div>
 
             <div
-              className="w-full bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
+              className="w-full border border-border bg-muted p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
               style={{ animationDelay: "0.2s" }}
             >
-              <div className="text-center">
-                <div className="text-xs text-muted-foreground mb-1">Current Offset</div>
-                <div className="text-xl font-bold tabular-nums">
+              <div className="text-center landscape:text-left">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Current Offset</div>
+                <div className="text-xl font-bold tabular-nums text-foreground">
                   {currentOffset > 0 ? "+" : ""}{currentOffset} ms
                 </div>
               </div>
@@ -195,11 +195,10 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
       {phase === "countIn" && (
         <div className="flex-1 flex flex-col items-center justify-center w-full gap-4 landscape:gap-3">
           <div className="text-center">
-            <p className="text-muted-foreground mb-4 landscape:mb-2 text-lg landscape:text-base animate-fade-in">Get ready to tap...</p>
+            <p className="text-muted-foreground mb-4 landscape:mb-2 text-sm animate-fade-in">Get ready to tap...</p>
             <div
               key={countInBeat}
-              className="text-8xl landscape:text-6xl font-display font-bold text-primary animate-count-pulse"
-              style={{ textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
+              className="text-7xl landscape:text-5xl font-display font-bold text-foreground animate-count-pulse"
             >
               {countInBeat ?? ""}
             </div>
@@ -218,8 +217,8 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
       {phase === "tapping" && (
         <div className="flex-1 w-full flex flex-col items-center justify-center gap-4 landscape:gap-3 animate-fade-in">
           <div className="text-center">
-            <p className="text-muted-foreground mb-1 text-sm landscape:text-xs">Tap along to what you hear</p>
-            <div className="text-4xl landscape:text-3xl font-display font-bold text-primary tabular-nums">
+            <p className="text-muted-foreground mb-1 text-xs">Tap along to what you hear</p>
+            <div className="text-3xl landscape:text-2xl font-display font-bold text-foreground tabular-nums">
               {tapCount} / {REQUIRED_TAPS}
             </div>
           </div>
@@ -238,25 +237,25 @@ export function CalibrationScreen({ onComplete, onCancel, currentOffset }: Calib
         <div className="flex-1 flex flex-col items-center justify-center landscape:flex-row landscape:gap-8 w-full">
           <div className="landscape:flex-1 landscape:max-w-sm">
             <div className="text-center landscape:text-left mb-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
-              <h2 className="text-2xl landscape:text-xl font-display font-bold">
-                Calibration <span className="text-primary">Complete</span>
+              <h2 className="text-xl font-display font-bold text-foreground">
+                Calibration Complete
               </h2>
             </div>
 
             <div
-              className="w-full bg-card/50 backdrop-blur-sm rounded-xl border border-border/50 p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
+              className="w-full border border-border bg-muted p-4 mb-6 landscape:mb-0 animate-fade-in-up opacity-0"
               style={{ animationDelay: "0.2s" }}
             >
-              <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="grid grid-cols-2 gap-4 text-center landscape:text-left">
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">Previous</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Previous</div>
                   <div className="text-lg font-bold tabular-nums text-muted-foreground">
                     {currentOffset > 0 ? "+" : ""}{currentOffset} ms
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground mb-1">New Offset</div>
-                  <div className="text-lg font-bold tabular-nums text-primary">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">New Offset</div>
+                  <div className="text-lg font-bold tabular-nums text-emerald-400">
                     {calculatedOffset !== null && (calculatedOffset > 0 ? "+" : "")}{calculatedOffset} ms
                   </div>
                 </div>

@@ -347,11 +347,10 @@ export function PlayPage() {
           {/* Notation Panel */}
           <div
             className={cn(
-              "w-full max-w-4xl rounded-2xl p-3 landscape:p-2 border transition-opacity duration-300",
-              "bg-gradient-to-b from-card/90 to-card/60",
-              "border-border/40",
-              "shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_4px_20px_-4px_rgba(0,0,0,0.3)]",
-              "backdrop-blur-sm pointer-events-none",
+              "w-full max-w-4xl p-3 landscape:p-2 border transition-opacity duration-300",
+              "bg-card",
+              "border-border",
+              "pointer-events-none",
               phase === "countIn" && "opacity-30"
             )}
           >
@@ -383,21 +382,6 @@ export function PlayPage() {
           </div>
         </div>
       </main>
-
-      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div
-          className="absolute -top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[600px] opacity-30"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.15) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          className="absolute -bottom-1/4 right-0 w-[600px] h-[400px] opacity-20"
-          style={{
-            background: "radial-gradient(ellipse at center, rgba(245,158,11,0.1) 0%, transparent 70%)",
-          }}
-        />
-      </div>
     </div>
   )
 }
