@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import type { GameState, GameScore, RuntimeBar, HitResult, Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { rhythmBuffer } from "@/engines/RhythmEngine"
 import { judgeEngine } from "@/engines/JudgeEngine"
 import { NotationRenderer } from "./NotationRenderer"
-import { CalibrationScreen } from "./CalibrationScreen"
 import { Button } from "@/components/ui/button"
 import { Knob } from "@/components/ui/knob"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
+import { generateSeed } from "@/lib/random"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
@@ -28,26 +29,6 @@ const DEFAULT_SETTINGS: StoredSettings = {
   playAlongVolume: 0,
   groupMode: false,
   includeTuplets: false,
-}
-
-const calculateScore = (
-  hits: number,
-  bpm: number,
-  difficulty: Difficulty,
-  timeSurvived: number
-): number => {
-  const difficultyMultipliers: Record<Difficulty, number> = {
-    easy: 1,
-    medium: 1.5,
-    hard: 2.5,
-  }
-  
-  // Base: hits count, scaled by difficulty
-  const difficultyBonus = difficultyMultipliers[difficulty]
-  const timeBonus = Math.max(1, timeSurvived / 10)
-  const bpmBonus = bpm / 120 // normalize to 120 BPM
-  
-  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
 }
 
 function loadSettings(): StoredSettings {
@@ -87,15 +68,15 @@ function hasCalibrated(): boolean {
   }
 }
 
-function saveLatencyOffset(offset: number): void {
-  try {
-    localStorage.setItem(LATENCY_OFFSET_KEY, String(offset))
-  } catch {
-    // ignore
-  }
+interface LocationState {
+  playSeed?: string
 }
 
 export function Game() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const locationState = location.state as LocationState | null
+
   const [gameState, setGameState] = useState<GameState>("idle")
   const [bars, setBars] = useState<RuntimeBar[]>([])
   const [score, setScore] = useState<GameScore>({
@@ -113,7 +94,6 @@ export function Game() {
   const [bpm, setBpm] = useState(() => loadSettings().bpm)
   const [difficultyValue, setDifficultyValue] = useState(() => loadSettings().difficultyValue)
 
-  // Map continuous value to difficulty zones
   const getDifficultyFromValue = (v: number): Difficulty => {
     if (v < 0.33) return "easy"
     if (v < 0.67) return "medium"
@@ -125,15 +105,16 @@ export function Game() {
   const feedbackTimeout = useRef<number | null>(null)
 
   const [countInBeat, setCountInBeat] = useState<number | null>(null)
-  const [gameOverReason, setGameOverReason] = useState<"miss" | "extra" | null>(null)
-  const [showCalibration, setShowCalibration] = useState(false)
-  const [latencyOffset, setLatencyOffset] = useState(loadLatencyOffset)
-  const [isCalibrated, setIsCalibrated] = useState(hasCalibrated)
+  const [latencyOffset] = useState(loadLatencyOffset)
+  const [isCalibrated] = useState(hasCalibrated)
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
   const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
   const animationFrame = useRef<number | null>(null)
-  
+
+  // Current game seed
+  const currentSeed = useRef<string | null>(null)
+
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
   const [showRingerWarning, setShowRingerWarning] = useState(() => {
@@ -142,17 +123,14 @@ export function Game() {
     const dismissed = localStorage.getItem(IOS_RINGER_KEY) === "true"
     return isIOS && !dismissed
   })
-  
+
   const dismissRingerWarning = (dontShowAgain: boolean) => {
     if (dontShowAgain) {
       localStorage.setItem(IOS_RINGER_KEY, "true")
     }
     setShowRingerWarning(false)
   }
-  
-  // Prevent accidental restart after game over
-  const [canRestart, setCanRestart] = useState(true)
-  
+
   // Landscape suggestion for mobile
   const LANDSCAPE_KEY = "landscape-dismissed"
   const [showLandscapeTip, setShowLandscapeTip] = useState(() => {
@@ -162,7 +140,7 @@ export function Game() {
     const dismissed = localStorage.getItem(LANDSCAPE_KEY) === "true"
     return isMobile && isPortrait && !dismissed
   })
-  
+
   const dismissLandscapeTip = (dontShowAgain: boolean) => {
     if (dontShowAgain) {
       localStorage.setItem(LANDSCAPE_KEY, "true")
@@ -211,11 +189,14 @@ export function Game() {
     }
     window.addEventListener("keydown", handleEscape)
     return () => window.removeEventListener("keydown", handleEscape)
-  }, [groupMode, gameState, stopGame])
+  }, [groupMode, gameState])
 
-  const startGame = async () => {
+  const startGame = async (seed?: string) => {
+    // Use provided seed or generate a new one
+    const gameSeed = seed ?? generateSeed()
+    currentSeed.current = gameSeed
+
     // CRITICAL: Unlock audio FIRST, synchronously within the click handler.
-    // This must happen before any await to satisfy iOS/Safari audio policies.
     transportEngine.unlockAudio()
 
     transportEngine.setBpm(bpm)
@@ -230,7 +211,6 @@ export function Game() {
     transportEngine.setRhythmSoundVolume(playAlongVolume)
 
     setScore({ barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 })
-    setGameOverReason(null)
 
     // Reset position state to prevent scroll position issues on repeat
     setCurrentBar(0)
@@ -243,7 +223,7 @@ export function Game() {
 
     await transportEngine.start()
 
-    const initialBars = rhythmBuffer.initialize()
+    const initialBars = rhythmBuffer.initialize(gameSeed)
     setBars(initialBars)
 
     // Pass initial onsets to transport engine for sound playback
@@ -253,17 +233,14 @@ export function Game() {
     }
   }
 
+  // Auto-start if coming from game over with playSeed
   useEffect(() => {
-    if (gameState !== "gameOver" || !canRestart) return
-
-    const handleEnterRestart = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        startGame()
-      }
+    if (locationState?.playSeed && gameState === "idle") {
+      // Clear the state so we don't auto-start again
+      window.history.replaceState({}, document.title)
+      startGame(locationState.playSeed)
     }
-    window.addEventListener("keydown", handleEnterRestart)
-    return () => window.removeEventListener("keydown", handleEnterRestart)
-  }, [gameState, canRestart])
+  }, [locationState?.playSeed])
 
   useEffect(() => {
     const unsubBeat = transportEngine.onBeat((beat, _bar, isCountIn) => {
@@ -289,12 +266,18 @@ export function Game() {
 
     const unsubGameOver = judgeEngine.onGameOver((reason) => {
       transportEngine.stop()
-      setGameOverReason(reason)
-      setGameState("gameOver")
-      setCanRestart(false)
-      // Prevent accidental restart - delay before Play Again is active
-      setTimeout(() => setCanRestart(true), 800)
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
+
+      // Navigate to game over page with the seed
+      const seed = currentSeed.current ?? generateSeed()
+      navigate(`/${seed}/gameOver`, {
+        state: {
+          score: { ...score, totalHits: score.totalHits },
+          gameOverReason: reason,
+          bpm,
+          difficulty,
+        },
+      })
     })
 
     return () => {
@@ -302,7 +285,7 @@ export function Game() {
       unsubJudge()
       unsubGameOver()
     }
-  }, [gameState, showFeedback, groupMode])
+  }, [gameState, groupMode, navigate, score, bpm, difficulty])
 
   useEffect(() => {
     if (gameState !== "running" && gameState !== "countIn") return
@@ -357,7 +340,6 @@ export function Game() {
     if (gameState !== "running" && gameState !== "countIn") return
 
     const preventTouchDefaults = (e: TouchEvent) => {
-      // Prevent zoom gestures (2+ fingers)
       if (e.touches.length > 1) {
         e.preventDefault()
       }
@@ -367,7 +349,6 @@ export function Game() {
       e.preventDefault()
     }
 
-    // Prevent double-tap zoom by intercepting touchend timing
     let lastTouchEnd = 0
     const preventDoubleTapZoom = (e: TouchEvent) => {
       const now = Date.now()
@@ -379,7 +360,6 @@ export function Game() {
 
     document.addEventListener("touchmove", preventTouchDefaults, { passive: false })
     document.addEventListener("touchend", preventDoubleTapZoom, { passive: false })
-    // Prevent Safari gesture events
     document.addEventListener("gesturestart", preventGestureStart)
     document.addEventListener("gesturechange", preventGestureStart)
     document.addEventListener("gestureend", preventGestureStart)
@@ -395,13 +375,6 @@ export function Game() {
 
   const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
 
-  const handleCalibrationComplete = (offset: number) => {
-    setLatencyOffset(offset)
-    saveLatencyOffset(offset)
-    setIsCalibrated(true)
-    setShowCalibration(false)
-  }
-
   return (
     <div
       className="min-h-dvh flex flex-col select-none"
@@ -412,33 +385,25 @@ export function Game() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
-        {showCalibration && (
-          <CalibrationScreen
-            onComplete={handleCalibrationComplete}
-            onCancel={() => setShowCalibration(false)}
-            currentOffset={latencyOffset}
-          />
-        )}
-
-        {gameState === "idle" && !showCalibration && (
+        {gameState === "idle" && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-2 gap-5 landscape:gap-10 max-w-md landscape:max-w-4xl mx-auto w-full">
             {/* Left: Title + buttons (landscape) / Top section (portrait) */}
             <div className="flex flex-col items-center landscape:items-center landscape:justify-center landscape:flex-1 gap-4 landscape:gap-3">
               <h2 className="text-3xl font-display font-bold tracking-tight animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
                 <span className="text-gradient">Rhythms</span>
               </h2>
-              
+
               {/* Buttons - only in landscape */}
               <div className="hidden landscape:flex flex-col items-center gap-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
                 <Button
                   size="lg"
-                  onClick={startGame}
+                  onClick={() => startGame()}
                   className="px-12 font-semibold animate-pulse-glow"
                 >
                   Play
                 </Button>
                 <button
-                  onClick={() => setShowCalibration(true)}
+                  onClick={() => navigate("/calibration")}
                   className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-1"
                 >
                   {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
@@ -508,13 +473,13 @@ export function Game() {
             <div className="flex flex-col items-center gap-2 landscape:hidden animate-fade-in-up opacity-0" style={{ animationDelay: "0.3s" }}>
               <Button
                 size="lg"
-                onClick={startGame}
+                onClick={() => startGame()}
                 className="px-12 font-semibold animate-pulse-glow"
               >
                 Play
               </Button>
               <button
-                onClick={() => setShowCalibration(true)}
+                onClick={() => navigate("/calibration")}
                 className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
               >
                 {isCalibrated ? "Calibrate" : "Calibrate (recommended)"}
@@ -580,7 +545,7 @@ export function Game() {
         )}
 
         {(gameState === "countIn" || gameState === "running") && (
-          <div 
+          <div
             className={cn(
               "flex-1 flex flex-col items-center justify-center p-3 landscape:p-2 gap-3 landscape:gap-2 w-full animate-fade-in relative",
               !groupMode && gameState === "running" && "cursor-pointer select-none"
@@ -659,84 +624,6 @@ export function Game() {
               ) : lastResult === "miss" ? (
                 <span className="text-xl font-bold text-miss">Miss</span>
               ) : null}
-            </div>
-          </div>
-        )}
-
-        {gameState === "gameOver" && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:p-3 gap-4 landscape:gap-8 w-full max-w-md landscape:max-w-3xl mx-auto relative">
-            {/* Score section */}
-            <div className="flex flex-col items-center landscape:items-end landscape:flex-1 relative z-10">
-              {/* Game Over Title */}
-              <h2
-                className="text-2xl font-display font-bold text-miss tracking-tight animate-fade-in-up opacity-0"
-                style={{ animationDelay: "0.15s", textShadow: "0 0 40px rgba(239,68,68,0.4)" }}
-              >
-                Game Over
-              </h2>
-              <p className="text-muted-foreground/60 text-xs mb-3 landscape:mb-2 animate-fade-in-up opacity-0" style={{ animationDelay: "0.2s" }}>
-                {gameOverReason === "miss" ? "Missed a note" : "Extra tap"}
-              </p>
-
-              {/* Score */}
-              <div 
-                className="text-5xl landscape:text-4xl font-display tabular-nums text-primary animate-score-reveal opacity-0"
-                style={{ animationDelay: "0.3s", textShadow: "0 0 60px rgba(245,158,11,0.5)" }}
-              >
-                {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
-              </div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 mb-3 landscape:mb-2 animate-fade-in opacity-0" style={{ animationDelay: "0.35s" }}>
-                Final Score
-              </div>
-
-              {/* Stats */}
-              <div className="flex items-center gap-4 animate-fade-in-up opacity-0" style={{ animationDelay: "0.45s" }}>
-                {[
-                  { value: score.totalHits, label: "hits" },
-                  { value: `${score.timeSurvived.toFixed(1)}s`, label: "time" },
-                  { value: score.barsSurvived, label: "bars" },
-                ].map((stat) => (
-                  <div key={stat.label} className="text-center">
-                    <div className="text-lg font-bold text-foreground tabular-nums">{stat.value}</div>
-                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Settings */}
-              <div className="flex items-center gap-2 text-[10px] text-muted-foreground/40 mt-2 animate-fade-in opacity-0" style={{ animationDelay: "0.5s" }}>
-                <span>{bpm} BPM</span>
-                <span>·</span>
-                <span>{difficultyLabels[difficulty]}</span>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex flex-col items-center gap-2 w-full max-w-[200px] animate-fade-in-up opacity-0" style={{ animationDelay: "0.6s" }}>
-              <Button 
-                size="default" 
-                onClick={startGame} 
-                disabled={!canRestart}
-                className={cn("w-full", !canRestart && "opacity-50")}
-              >
-                Play Again
-              </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={stopGame} 
-                className="w-full text-muted-foreground/70 hover:text-foreground"
-              >
-                Menu
-              </Button>
-              <a
-                href="https://buymeacoffee.com/danielives"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors mt-1"
-              >
-                <span>♡</span> Support the dev
-              </a>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 import type { Bar, Onset, RuntimeBar, RuntimeOnset, Difficulty, BeatPattern } from "@/types"
 import { transportEngine } from "./TransportEngine"
 import beatsConfig from "@/beats.json"
+import { SeededRandom } from "@/lib/random"
 
 let barIdCounter = 0
 let onsetIdCounter = 0
@@ -23,10 +24,10 @@ function getPatternsForDifficulty(difficulty: Difficulty, includeTuplets: boolea
   })
 }
 
-function pickRandomPattern(patterns: BeatPattern[], targetLength?: 1 | 2): BeatPattern {
+function pickRandomPattern(patterns: BeatPattern[], rng: SeededRandom, targetLength?: 1 | 2): BeatPattern {
   const filtered = targetLength ? patterns.filter((p) => p.length === targetLength) : patterns
   const pool = filtered.length > 0 ? filtered : patterns
-  return pool[Math.floor(Math.random() * pool.length)]
+  return rng.pick(pool)
 }
 
 // Calculate "complexity" of a bar based on number of onsets and syncopation
@@ -44,7 +45,7 @@ export function calculateBarComplexity(bar: Bar): number {
   return numOnsets + syncopation
 }
 
-export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false, includeTuplets: boolean = false): Bar {
+export function generateBar(difficulty: Difficulty, rng: SeededRandom, isFirstBar: boolean = false, includeTuplets: boolean = false): Bar {
   const patterns = getPatternsForDifficulty(difficulty, includeTuplets)
   const onsets: Onset[] = []
 
@@ -66,13 +67,13 @@ export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false,
       targetLength = 1
     } else if (beatsRemaining === 3) {
       // Can't fit a 2-beat, so alternate: 1+2 or 2+1
-      targetLength = Math.random() < 0.5 ? 1 : 2
+      targetLength = rng.random() < 0.5 ? 1 : 2
       // But if we pick 2 first with 3 remaining, we'd have 1 left - that works
       // Actually just pick based on what's available
-      targetLength = Math.random() < 0.5 ? 1 : (beatsRemaining >= 2 ? 2 : 1)
+      targetLength = rng.random() < 0.5 ? 1 : (beatsRemaining >= 2 ? 2 : 1)
     } else {
       // 2 or 4 beats remaining - randomly pick 1 or 2
-      targetLength = Math.random() < 0.5 ? 1 : 2
+      targetLength = rng.random() < 0.5 ? 1 : 2
     }
 
     // Make sure target doesn't exceed remaining
@@ -80,7 +81,7 @@ export function generateBar(difficulty: Difficulty, isFirstBar: boolean = false,
       targetLength = beatsRemaining as 1 | 2
     }
 
-    const pattern = pickRandomPattern(patterns, targetLength)
+    const pattern = pickRandomPattern(patterns, rng, targetLength)
 
     // Convert pattern onsets to bar onsets
     for (const pOnset of pattern.onsets) {
@@ -140,6 +141,7 @@ export class RhythmBuffer {
   private difficulty: Difficulty = "medium"
   private includeTuplets: boolean = false
   private nextBarIndex: number = 0
+  private rng: SeededRandom | null = null
 
   setDifficulty(difficulty: Difficulty): void {
     this.difficulty = difficulty
@@ -149,6 +151,10 @@ export class RhythmBuffer {
     this.includeTuplets = include
   }
 
+  setSeed(seed: string): void {
+    this.rng = new SeededRandom(seed)
+  }
+
   reset(): void {
     this.bars = []
     this.nextBarIndex = 0
@@ -156,8 +162,9 @@ export class RhythmBuffer {
     onsetIdCounter = 0
   }
 
-  initialize(): RuntimeBar[] {
+  initialize(seed: string): RuntimeBar[] {
     this.reset()
+    this.rng = new SeededRandom(seed)
     // Initialize with 6 bars (extra lookahead to prevent pop-in)
     for (let i = 0; i < 6; i++) {
       this.appendBar(i === 0)
@@ -166,7 +173,10 @@ export class RhythmBuffer {
   }
 
   appendBar(isFirstBar: boolean = false): RuntimeBar {
-    const bar = generateBar(this.difficulty, isFirstBar, this.includeTuplets)
+    if (!this.rng) {
+      throw new Error("RhythmBuffer must be initialized with a seed before generating bars")
+    }
+    const bar = generateBar(this.difficulty, this.rng, isFirstBar, this.includeTuplets)
     const runtimeBar = toRuntimeBar(bar, this.nextBarIndex)
     this.bars.push(runtimeBar)
     this.nextBarIndex++
