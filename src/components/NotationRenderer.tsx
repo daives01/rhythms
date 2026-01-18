@@ -274,16 +274,33 @@ function createTupletNotes(
   const notes: StaveNote[] = []
   const { numNotes, notesOccupied } = group.tuplet
   
-  // Determine duration based on tuplet type
-  // Triplet eighths: 3 notes in space of 2 eighths = each is "8"
-  // Quintuplet 16ths: 5 notes in space of 4 16ths = each is "16"
-  const duration = numNotes === 3 ? "8" : "16"
-  
-  // Create notes for each onset in the tuplet
+  // Determine duration based on tuplet subdivision.
+  // In your data model:
+  // - d=3 => triplet subdivision within the beat (render as eighth-note triplet)
+  // - d=5 => quintuplet subdivision (your existing use is 16th quintuplet)
+  const subdivisionD = group.onsets[0]?.d ?? numNotes
+  const duration = subdivisionD === 3 ? "8" : "16"
+
+  // Build a lookup so we can render rests for missing tuplet positions.
+  // Example: "hit + rest + hit" triplet => onsets at n=0 and n=2, but we must
+  // still draw a rest at n=1.
+  const onsetByIndex = new Map<number, RuntimeOnset>()
   for (const onset of group.onsets) {
-    const note = new StaveNote({ keys: ["c/5"], duration, stemDirection: 1 })
-    notes.push(note)
-    noteToOnset.set(note, onset)
+    onsetByIndex.set(onset.n, onset)
+  }
+
+  // Create exactly numNotes tickables: notes where there are onsets, rests where
+  // there are gaps.
+  for (let i = 0; i < numNotes; i++) {
+    const onset = onsetByIndex.get(i)
+    if (onset) {
+      const note = new StaveNote({ keys: ["c/5"], duration, stemDirection: 1 })
+      notes.push(note)
+      noteToOnset.set(note, onset)
+    } else {
+      const rest = new StaveNote({ keys: ["b/4"], duration: `${duration}r` })
+      notes.push(rest)
+    }
   }
   
   // Create the tuplet bracket
@@ -294,6 +311,36 @@ function createTupletNotes(
   })
   
   return { notes, tuplet }
+}
+
+function createBeamsSkippingRests(
+  notes: StaveNote[]
+): { beam: Beam; notes: StaveNote[] }[] {
+  const results: { beam: Beam; notes: StaveNote[] }[] = []
+  let run: StaveNote[] = []
+
+  const flush = () => {
+    if (run.length >= 2) {
+      results.push({ beam: new Beam(run), notes: run })
+    }
+    run = []
+  }
+
+  for (const n of notes) {
+    if (n.isRest()) {
+      flush()
+      continue
+    }
+    const dur = n.getDuration()
+    if (dur !== "8" && dur !== "16") {
+      flush()
+      continue
+    }
+    run.push(n)
+  }
+
+  flush()
+  return results
 }
 
 function renderBar(
@@ -333,11 +380,8 @@ function renderBar(
         allNotes.push(...notes)
         tupletObjects.push(tuplet)
         
-        // Beam tuplet notes if 2+
-        if (notes.length >= 2) {
-          const beam = new Beam(notes)
-          beamsWithNotes.push({ beam, notes })
-        }
+        // Beam tuplet notes, but do NOT beam across rests.
+        beamsWithNotes.push(...createBeamsSkippingRests(notes))
       } else {
         // Check for regular onsets on this beat
         const beatOnsets = bar.onsets.filter((o) => o.beatIndex === beat && o.d === 4)

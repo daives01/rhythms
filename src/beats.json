@@ -39,28 +39,45 @@
       "id": "16-16-8",
       "name": "Two sixteenths + eighth",
       "length": 1,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 1, "d": 4 },
+        { "n": 2, "d": 4 }
+      ],
       "difficulty": ["medium", "hard"]
     },
     {
       "id": "8-16-16",
       "name": "Eighth + two sixteenths",
       "length": 1,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 3, "d": 4 }
+      ],
       "difficulty": ["medium", "hard"]
     },
     {
       "id": "16-16-16-16",
       "name": "Four sixteenths",
       "length": 1,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 1, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 3, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "16-8-16",
       "name": "Sixteenth + eighth + sixteenth",
       "length": 1,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 3, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 1, "d": 4 },
+        { "n": 3, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
@@ -95,7 +112,7 @@
       "id": "16r-8-16",
       "name": "Sixteenth rest + eighth + sixteenth",
       "length": 1,
-      "onsets": [{ "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }],
+      "onsets": [{ "n": 1, "d": 4 }, { "n": 3, "d": 4 }],
       "difficulty": ["hard"]
     },
     {
@@ -116,21 +133,34 @@
       "id": "q-8-8",
       "name": "Quarter + two eighths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["easy", "medium"]
     },
     {
       "id": "8-8-q",
       "name": "Two eighths + quarter",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 4, "d": 4 }
+      ],
       "difficulty": ["easy", "medium"]
     },
     {
       "id": "8-8-8-8",
       "name": "Four eighths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["easy", "medium"]
     },
     {
@@ -165,56 +195,98 @@
       "id": "8-8r-8-8",
       "name": "Eighth + rest + two eighths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["medium", "hard"]
     },
     {
       "id": "8-8-8r-8",
       "name": "Two eighths + rest + eighth",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["medium", "hard"]
     },
     {
       "id": "16-16-8-q",
       "name": "Two sixteenths + eighth + quarter",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 1, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 4, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "q-16-16-8",
       "name": "Quarter + two sixteenths + eighth",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 5, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 5, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "8-16-16-8-8",
       "name": "Eighth + two sixteenths + two eighths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 3, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 6, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "8-8-8-16-16",
       "name": "Three eighths + two sixteenths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 4, "d": 4 }, { "n": 6, "d": 4 }, { "n": 7, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 6, "d": 4 },
+        { "n": 7, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "16-16-16-16-q",
       "name": "Four sixteenths + quarter",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 1, "d": 4 }, { "n": 2, "d": 4 }, { "n": 3, "d": 4 }, { "n": 4, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 1, "d": 4 },
+        { "n": 2, "d": 4 },
+        { "n": 3, "d": 4 },
+        { "n": 4, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
       "id": "q-16-16-16-16",
       "name": "Quarter + four sixteenths",
       "length": 2,
-      "onsets": [{ "n": 0, "d": 4 }, { "n": 4, "d": 4 }, { "n": 5, "d": 4 }, { "n": 6, "d": 4 }, { "n": 7, "d": 4 }],
+      "onsets": [
+        { "n": 0, "d": 4 },
+        { "n": 4, "d": 4 },
+        { "n": 5, "d": 4 },
+        { "n": 6, "d": 4 },
+        { "n": 7, "d": 4 }
+      ],
       "difficulty": ["hard"]
     },
     {
@@ -231,6 +303,15 @@
       "onsets": [{ "n": 0, "d": 4 }, { "n": 6, "d": 4 }],
       "difficulty": ["hard"]
     },
+
+    {
+      "id": "8-q-8",
+      "name": "Eighth + quarter + eighth",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 4 }, { "n": 2, "d": 4 }, { "n": 6, "d": 4 }],
+      "difficulty": ["medium", "hard"]
+    },
+
     {
       "id": "triplet-8",
       "name": "Eighth note triplet",
@@ -240,12 +321,114 @@
       "tuplet": { "numNotes": 3, "notesOccupied": 2 }
     },
     {
+      "id": "triplet-8-8r-8",
+      "name": "Triplet: eighth + rest + eighth",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 3 }, { "n": 2, "d": 3 }],
+      "difficulty": ["medium", "hard"],
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    },
+    {
+      "id": "triplet-8r-8-8",
+      "name": "Triplet: rest + two eighths",
+      "length": 1,
+      "onsets": [{ "n": 1, "d": 3 }, { "n": 2, "d": 3 }],
+      "difficulty": ["medium", "hard"],
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    },
+    {
+      "id": "triplet-8-8-8r",
+      "name": "Triplet: two eighths + rest",
+      "length": 1,
+      "onsets": [{ "n": 0, "d": 3 }, { "n": 1, "d": 3 }],
+      "difficulty": ["medium", "hard"],
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    },
+
+    {
       "id": "quintuplet-16",
       "name": "Sixteenth quintuplet",
       "length": 1,
-      "onsets": [{ "n": 0, "d": 5 }, { "n": 1, "d": 5 }, { "n": 2, "d": 5 }, { "n": 3, "d": 5 }, { "n": 4, "d": 5 }],
+      "onsets": [
+        { "n": 0, "d": 5 },
+        { "n": 1, "d": 5 },
+        { "n": 2, "d": 5 },
+        { "n": 3, "d": 5 },
+        { "n": 4, "d": 5 }
+      ],
       "difficulty": ["hard"],
       "tuplet": { "numNotes": 5, "notesOccupied": 4 }
-    }
+    },
+    {
+    "id": "triplet-q",
+    "name": "Quarter note triplet (3 in the time of 2)",
+    "length": 2,
+    "onsets": [{ "n": 0, "d": 3 }, { "n": 2, "d": 3 }, { "n": 4, "d": 3 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+  },
+  {
+    "id": "triplet-q-q-qR",
+    "name": "Quarter triplet: two quarters + rest",
+    "length": 2,
+    "onsets": [{ "n": 0, "d": 3 }, { "n": 2, "d": 3 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+  },
+  {
+    "id": "triplet-qR-q-q",
+    "name": "Quarter triplet: rest + two quarters",
+    "length": 2,
+    "onsets": [{ "n": 2, "d": 3 }, { "n": 4, "d": 3 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+  },
+  {
+    "id": "triplet-q-qR-q",
+    "name": "Quarter triplet: quarter + rest + quarter",
+    "length": 2,
+    "onsets": [{ "n": 0, "d": 3 }, { "n": 4, "d": 3 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+  },
+
+  {
+    "id": "quintuplet-8",
+    "name": "Eighth-note quintuplet (5 in the time of 4 eighths)",
+    "length": 2,
+    "onsets": [
+      { "n": 0, "d": 5 },
+      { "n": 2, "d": 5 },
+      { "n": 4, "d": 5 },
+      { "n": 6, "d": 5 },
+      { "n": 8, "d": 5 }
+    ],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
+  },
+  {
+    "id": "quintuplet-8-8-8-8r-8r",
+    "name": "Eighth quintuplet: first three notes",
+    "length": 2,
+    "onsets": [{ "n": 0, "d": 5 }, { "n": 2, "d": 5 }, { "n": 4, "d": 5 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
+  },
+  {
+    "id": "quintuplet-8-8r-8r-8-8",
+    "name": "Eighth quintuplet: last two notes",
+    "length": 2,
+    "onsets": [{ "n": 6, "d": 5 }, { "n": 8, "d": 5 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
+  },
+  {
+    "id": "quintuplet-8-8r-8-8r-8",
+    "name": "Eighth quintuplet: alternating (1, 3, 5)",
+    "length": 2,
+    "onsets": [{ "n": 0, "d": 5 }, { "n": 4, "d": 5 }, { "n": 8, "d": 5 }],
+    "difficulty": ["hard"],
+    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
+  }
   ]
 }

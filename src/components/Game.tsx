@@ -103,35 +103,21 @@ export function Game() {
 
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
+  const IOS_RINGER_SESSION_KEY = "ios-ringer-session-shown"
   const [showRingerWarning, setShowRingerWarning] = useState(() => {
     if (typeof window === "undefined") return false
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     const dismissed = localStorage.getItem(IOS_RINGER_KEY) === "true"
-    return isIOS && !dismissed
+    const alreadyShownSession = sessionStorage.getItem(IOS_RINGER_SESSION_KEY) === "true"
+    return isIOS && !dismissed && !alreadyShownSession
   })
 
   const dismissRingerWarning = (dontShowAgain: boolean) => {
     if (dontShowAgain) {
       localStorage.setItem(IOS_RINGER_KEY, "true")
     }
+    sessionStorage.setItem(IOS_RINGER_SESSION_KEY, "true")
     setShowRingerWarning(false)
-  }
-
-  // Landscape suggestion for mobile
-  const LANDSCAPE_KEY = "landscape-dismissed"
-  const [showLandscapeTip, setShowLandscapeTip] = useState(() => {
-    if (typeof window === "undefined") return false
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    const isPortrait = window.innerHeight > window.innerWidth
-    const dismissed = localStorage.getItem(LANDSCAPE_KEY) === "true"
-    return isMobile && isPortrait && !dismissed
-  })
-
-  const dismissLandscapeTip = (dontShowAgain: boolean) => {
-    if (dontShowAgain) {
-      localStorage.setItem(LANDSCAPE_KEY, "true")
-    }
-    setShowLandscapeTip(false)
   }
 
   useEffect(() => {
@@ -366,31 +352,6 @@ export function Game() {
                 </Button>
                 <button
                   onClick={() => dismissRingerWarning(true)}
-                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors py-2"
-                >
-                  Don't show again
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Landscape Tip Modal */}
-        {showLandscapeTip && !showRingerWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4">
-            <div className="bg-muted border border-border p-5 max-w-xs w-full animate-fade-in">
-              <h3 className="text-sm font-semibold text-foreground mb-2">
-                Try landscape mode
-              </h3>
-              <p className="text-xs text-muted-foreground mb-5">
-                Rotate your phone sideways for a better view of the music notation.
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button onClick={() => dismissLandscapeTip(false)} className="w-full">
-                  Got it
-                </Button>
-                <button
-                  onClick={() => dismissLandscapeTip(true)}
                   className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors py-2"
                 >
                   Don't show again

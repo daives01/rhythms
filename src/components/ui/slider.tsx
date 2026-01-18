@@ -68,7 +68,7 @@ export function Slider({
     <div className="flex flex-col gap-1 relative">
       {Icon && (
         <div
-          className="absolute -left-10 top-0 h-8 w-10 flex items-center justify-center z-10"
+          className="absolute -left-10 top-0 h-12 w-10 flex items-center justify-center z-10"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
@@ -96,7 +96,7 @@ export function Slider({
       )}
       <div className="flex items-center relative pl-4">
         <div className="relative flex-1 flex flex-col">
-          <div className="relative h-8 flex items-center">
+          <div className="relative h-12 flex items-center">
             <div className="relative w-full h-4 bg-muted border border-border rounded-sm">
               <div className="absolute inset-x-1 inset-y-1 bg-background rounded-[2px]" />
 
@@ -145,14 +145,17 @@ export function Slider({
               className={cn(
                 "absolute inset-0 w-full h-full appearance-none cursor-ew-resize bg-transparent z-10",
                 "[&::-webkit-slider-thumb]:appearance-none",
-                "[&::-webkit-slider-thumb]:w-4",
-                "[&::-webkit-slider-thumb]:h-4",
+                "[&::-webkit-slider-thumb]:w-12",
+                "[&::-webkit-slider-thumb]:h-12",
                 "[&::-webkit-slider-thumb]:bg-transparent",
                 "[&::-webkit-slider-thumb]:cursor-ew-resize",
-                "[&::-moz-range-thumb]:w-4",
-                "[&::-moz-range-thumb]:h-4",
+                "[&::-webkit-slider-thumb]:shadow-none",
+                "[&::-webkit-slider-thumb]:border-none",
+                "[&::-moz-range-thumb]:w-12",
+                "[&::-moz-range-thumb]:h-12",
                 "[&::-moz-range-thumb]:bg-transparent",
                 "[&::-moz-range-thumb]:border-none",
+                "[&::-moz-range-thumb]:shadow-none",
                 "[&::-moz-range-thumb]:cursor-ew-resize",
                 "[&::-webkit-slider-runnable-track]:bg-transparent",
                 "[&::-moz-range-track]:bg-transparent"
