@@ -11,9 +11,9 @@ interface CalibrationScreenProps {
   currentOffset: number
 }
 
-const CALIBRATION_BPM = 90
+const CALIBRATION_BPM = 120
 const REQUIRED_TAPS = 16
-const MAX_DEVIATION = 300
+const MAX_DEVIATION = 225
 
 export function CalibrationScreen({ onComplete, onCancel, currentOffset }: CalibrationScreenProps) {
   const [phase, setPhase] = useState<"intro" | "countIn" | "tapping" | "done">("intro")
