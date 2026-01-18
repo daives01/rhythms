@@ -14,7 +14,7 @@ export class JudgeEngine {
   private missCheckTimer: number | null = null
   private isActive: boolean = false
   private lastHitTime: number = 0
-  private readonly inputDebounceMs: number = 50
+  private readonly inputDebounceMs: number = 20
 
   setTolerance(toleranceMs: number): void {
     this.baseToleranceMs = Math.max(40, Math.min(150, toleranceMs))

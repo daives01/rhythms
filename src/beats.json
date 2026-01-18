@@ -67,7 +67,7 @@
         { "n": 2, "d": 4 },
         { "n": 3, "d": 4 }
       ],
-      "difficulty": ["hard"]
+      "difficulty": ["medium", "hard"]
     },
     {
       "id": "16-8-16",
@@ -325,7 +325,7 @@
       "name": "Triplet: eighth + rest + eighth",
       "length": 1,
       "onsets": [{ "n": 0, "d": 3 }, { "n": 2, "d": 3 }],
-      "difficulty": ["medium", "hard"],
+      "difficulty": ["hard"],
       "tuplet": { "numNotes": 3, "notesOccupied": 2 }
     },
     {
@@ -333,7 +333,7 @@
       "name": "Triplet: rest + two eighths",
       "length": 1,
       "onsets": [{ "n": 1, "d": 3 }, { "n": 2, "d": 3 }],
-      "difficulty": ["medium", "hard"],
+      "difficulty": ["hard"],
       "tuplet": { "numNotes": 3, "notesOccupied": 2 }
     },
     {
@@ -341,23 +341,8 @@
       "name": "Triplet: two eighths + rest",
       "length": 1,
       "onsets": [{ "n": 0, "d": 3 }, { "n": 1, "d": 3 }],
-      "difficulty": ["medium", "hard"],
-      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
-    },
-
-    {
-      "id": "quintuplet-16",
-      "name": "Sixteenth quintuplet",
-      "length": 1,
-      "onsets": [
-        { "n": 0, "d": 5 },
-        { "n": 1, "d": 5 },
-        { "n": 2, "d": 5 },
-        { "n": 3, "d": 5 },
-        { "n": 4, "d": 5 }
-      ],
       "difficulty": ["hard"],
-      "tuplet": { "numNotes": 5, "notesOccupied": 4 }
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
     },
     {
     "id": "triplet-q",
@@ -383,52 +368,13 @@
     "difficulty": ["hard"],
     "tuplet": { "numNotes": 3, "notesOccupied": 2 }
   },
-  {
-    "id": "triplet-q-qR-q",
-    "name": "Quarter triplet: quarter + rest + quarter",
-    "length": 2,
-    "onsets": [{ "n": 0, "d": 3 }, { "n": 4, "d": 3 }],
-    "difficulty": ["hard"],
-    "tuplet": { "numNotes": 3, "notesOccupied": 2 }
-  },
-
-  {
-    "id": "quintuplet-8",
-    "name": "Eighth-note quintuplet (5 in the time of 4 eighths)",
-    "length": 2,
-    "onsets": [
-      { "n": 0, "d": 5 },
-      { "n": 2, "d": 5 },
-      { "n": 4, "d": 5 },
-      { "n": 6, "d": 5 },
-      { "n": 8, "d": 5 }
-    ],
-    "difficulty": ["hard"],
-    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
-  },
-  {
-    "id": "quintuplet-8-8-8-8r-8r",
-    "name": "Eighth quintuplet: first three notes",
-    "length": 2,
-    "onsets": [{ "n": 0, "d": 5 }, { "n": 2, "d": 5 }, { "n": 4, "d": 5 }],
-    "difficulty": ["hard"],
-    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
-  },
-  {
-    "id": "quintuplet-8-8r-8r-8-8",
-    "name": "Eighth quintuplet: last two notes",
-    "length": 2,
-    "onsets": [{ "n": 6, "d": 5 }, { "n": 8, "d": 5 }],
-    "difficulty": ["hard"],
-    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
-  },
-  {
-    "id": "quintuplet-8-8r-8-8r-8",
-    "name": "Eighth quintuplet: alternating (1, 3, 5)",
-    "length": 2,
-    "onsets": [{ "n": 0, "d": 5 }, { "n": 4, "d": 5 }, { "n": 8, "d": 5 }],
-    "difficulty": ["hard"],
-    "tuplet": { "numNotes": 5, "notesOccupied": 4 }
-  }
+    {
+      "id": "triplet-q-qR-q",
+      "name": "Quarter triplet: quarter + rest + quarter",
+      "length": 2,
+      "onsets": [{ "n": 0, "d": 3 }, { "n": 4, "d": 3 }],
+      "difficulty": ["hard"],
+      "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    }
   ]
 }
