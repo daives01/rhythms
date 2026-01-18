@@ -375,6 +375,20 @@
       "onsets": [{ "n": 0, "d": 3 }, { "n": 4, "d": 3 }],
       "difficulty": ["hard"],
       "tuplet": { "numNotes": 3, "notesOccupied": 2 }
+    },
+    {
+      "id": "quintuplet-16",
+      "name": "Sixteenth note quintuplet",
+      "length": 1,
+      "onsets": [
+        { "n": 0, "d": 5 },
+        { "n": 1, "d": 5 },
+        { "n": 2, "d": 5 },
+        { "n": 3, "d": 5 },
+        { "n": 4, "d": 5 }
+      ],
+      "difficulty": ["hard"],
+      "tuplet": { "numNotes": 5, "notesOccupied": 4 }
     }
   ]
 }
