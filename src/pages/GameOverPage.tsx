@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
-import { RotateCcw, Copy, Check } from "lucide-react"
+import { Gauge, Signal, Volume2, RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
-import { Button } from "@/components/ui/button"
 import { PanelContainer } from "@/components/ui/panel-container"
+import { Slider } from "@/components/ui/slider"
+import { AmpSwitch } from "@/components/ui/amp-switch"
+import { SoundboardButton } from "@/components/ui/soundboard-button"
+import { PlayButton } from "@/components/ui/play-button"
 import { cn } from "@/lib/utils"
-import { decodeChallenge } from "@/lib/random"
+import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
 
+const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
 
 interface StoredSettings {
@@ -37,10 +41,47 @@ function loadSettings(): StoredSettings {
   }
 }
 
+function saveSettings(settings: Partial<StoredSettings>): void {
+  try {
+    const current = loadSettings()
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
+  } catch {
+    // ignore
+  }
+}
+
+function hasCalibrated(): boolean {
+  try {
+    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
 const getDifficultyFromValue = (v: number): Difficulty => {
   if (v < 0.33) return "easy"
   if (v < 0.67) return "medium"
   return "hard"
+}
+
+const calculateBPMColor = (bpm: number): string => {
+  const minBpm = 60
+  const maxBpm = 180
+  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
+
+  if (normalized <= 0.5) {
+    const p = normalized / 0.5
+    const r = Math.round(52 + p * (251 - 52))
+    const g = Math.round(211 + p * (191 - 211))
+    const b = Math.round(153 + p * (36 - 153))
+    return `rgb(${r}, ${g}, ${b})`
+  } else {
+    const p = (normalized - 0.5) / 0.5
+    const r = Math.round(251 + p * (248 - 251))
+    const g = Math.round(191 + p * (113 - 191))
+    const b = Math.round(36 + p * (113 - 36))
+    return `rgb(${r}, ${g}, ${b})`
+  }
 }
 
 const calculateScore = (
@@ -86,53 +127,48 @@ export function GameOverPage() {
   const [copied, setCopied] = useState(false)
 
   const state = location.state as LocationState | null
-  const settings = loadSettings()
+  const initialSettings = loadSettings()
 
-  // Use state from navigation or fall back to defaults
   const score = state?.score ?? { barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 }
   const gameOverReason = state?.gameOverReason ?? "miss"
 
-  // Get game settings from challenge data or fall back to user settings
-  const bpm = challengeData?.bpm ?? settings.bpm
-  const difficulty = challengeData
-    ? getDifficultyFromValue(challengeData.difficulty)
-    : getDifficultyFromValue(settings.difficultyValue)
-  const tuplets = challengeData?.tuplets ?? settings.includeTuplets
+  // Editable settings (initialized from challenge or user settings)
+  const [bpm, setBpm] = useState(() => challengeData?.bpm ?? initialSettings.bpm)
+  const [difficultyValue, setDifficultyValue] = useState(() => challengeData?.difficulty ?? initialSettings.difficultyValue)
+  const [playAlongVolume, setPlayAlongVolume] = useState(() => initialSettings.playAlongVolume)
+  const [groupMode, setGroupMode] = useState(() => initialSettings.groupMode)
+  const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? initialSettings.includeTuplets)
+  const [isCalibrated] = useState(hasCalibrated)
 
-  const difficultyLabels: Record<Difficulty, string> = { easy: "EASY", medium: "NORMAL", hard: "HARD" }
+  const difficulty = getDifficultyFromValue(difficultyValue)
+  const finalScore = calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)
 
-  // Prevent accidental restart - delay before buttons are active
+  useEffect(() => {
+    saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
+  }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
+
   useEffect(() => {
     const timer = setTimeout(() => setCanRestart(true), 800)
     return () => clearTimeout(timer)
   }, [])
 
-  // Play again - go back to menu
-  const handlePlayAgain = () => {
-    navigate("/")
+  const startGame = (challenge?: ChallengeData) => {
+    const gameChallenge: ChallengeData = challenge ?? {
+      seed: generateSeed(),
+      bpm,
+      difficulty: difficultyValue,
+      tuplets: includeTuplets,
+    }
+    transportEngine.unlockAudio()
+    const encoded = encodeChallenge(gameChallenge)
+    navigate(`/play?challenge=${encoded}`)
   }
 
-  // Retry with same challenge
   const handleRetry = () => {
-    if (!challengeParam) return
-    // Unlock audio in click handler context (required for iOS/Safari)
+    if (!challengeParam || !challengeData) return
     transportEngine.unlockAudio()
     navigate(`/play?challenge=${challengeParam}`)
   }
-
-  // Handle Enter to play again (new seed)
-  useEffect(() => {
-    if (!canRestart) return
-
-    const handleEnterRestart = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        handlePlayAgain()
-      }
-    }
-    window.addEventListener("keydown", handleEnterRestart)
-    return () => window.removeEventListener("keydown", handleEnterRestart)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRestart])
 
   const handleCopyLink = async () => {
     if (!challengeParam) return
@@ -142,7 +178,6 @@ export function GameOverPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback for older browsers
       const textArea = document.createElement("textarea")
       textArea.value = url
       document.body.appendChild(textArea)
@@ -163,119 +198,144 @@ export function GameOverPage() {
         WebkitUserSelect: "none",
       }}
     >
-      <main className="flex-1 flex flex-col relative overflow-auto">
-        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 w-full max-w-lg landscape:max-w-5xl mx-auto relative">
-          {/* Left: Title */}
-          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
-            <h2
-              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+      <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+          {/* Left column: Title + Score */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center animate-fade-in-up">
+            <h1
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground uppercase"
               style={{ letterSpacing: "0.1em" }}
             >
               game over
-            </h2>
-            <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
+            </h1>
+            <p className="text-muted-foreground/50 text-[10px] uppercase tracking-wider mt-2">
               {gameOverReason === "miss" ? "MISSED A NOTE" : "EXTRA TAP"}
             </p>
+
+            {/* Score display */}
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-4xl font-display font-bold tabular-nums text-foreground">
+                {finalScore}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">pts</span>
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+              <span>{score.totalHits} hits</span>
+              <span>·</span>
+              <span>{score.timeSurvived.toFixed(1)}s</span>
+              <span>·</span>
+              <span>{score.barsSurvived} bars</span>
+            </div>
+
+            {/* Challenge actions */}
+            {challengeParam && (
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={handleRetry}
+                  disabled={!canRestart}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors",
+                    !canRestart && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry
+                </button>
+                <button
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-400">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      Share
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Right: Results panel */}
-          <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
-            {/* Final score */}
-            <div className="p-6 text-center">
-              <div className="text-5xl font-display font-bold tabular-nums text-foreground">
-                {calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)}
-              </div>
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mt-1">
-                Final Score
-              </div>
+          {/* Right column: Mixer panel (same as main menu) */}
+          <PanelContainer className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up">
+            {/* Fader controls */}
+            <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
+              <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
+              <Slider
+                value={bpm}
+                onValueChange={setBpm}
+                min={60}
+                max={180}
+                step={5}
+                icon={Gauge}
+                label="BPM"
+                color={calculateBPMColor(bpm)}
+                units={["60", "120", "180"]}
+              />
+              <Slider
+                value={difficultyValue}
+                onValueChange={setDifficultyValue}
+                min={0}
+                max={1}
+                step={0.01}
+                icon={Signal}
+                label="Level"
+                color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
+                units={["EASY", "NORMAL", "HARD"]}
+                snapPoints={[0, 0.5, 1]}
+              />
+              <Slider
+                value={playAlongVolume}
+                onValueChange={setPlayAlongVolume}
+                min={0}
+                max={1}
+                step={0.01}
+                icon={Volume2}
+                label="Monitor"
+                color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
+                units={["0%", "50%", "100%"]}
+              />
             </div>
 
+            {/* Full-width divider */}
             <div className="h-px bg-border w-full" />
 
-            {/* Stats row */}
-            <div className="p-6 flex items-center justify-center gap-6">
-              <div className="text-center">
-                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.totalHits}</div>
-                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Hits</div>
+            {/* Controls row */}
+            <div className="flex items-stretch">
+              {/* Left group: switches + calibrate */}
+              <div className="flex-1 p-6 flex items-start justify-evenly">
+                <AmpSwitch
+                  label="Practice"
+                  checked={groupMode}
+                  onCheckedChange={setGroupMode}
+                />
+                <AmpSwitch
+                  label="Tuplets"
+                  checked={includeTuplets}
+                  onCheckedChange={setIncludeTuplets}
+                />
+                <SoundboardButton
+                  label="Calibrate"
+                  onClick={() => navigate("/calibration")}
+                  active={isCalibrated}
+                  warning={!isCalibrated}
+                />
               </div>
-              <div className="w-px h-8 bg-border" />
-              <div className="text-center">
-                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.timeSurvived.toFixed(1)}s</div>
-                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Time</div>
+
+              {/* Vertical divider */}
+              <div className="w-px bg-border" />
+
+              {/* Right group: play */}
+              <div className="p-6 flex items-start justify-center">
+                <PlayButton onClick={() => startGame()} />
               </div>
-              <div className="w-px h-8 bg-border" />
-              <div className="text-center">
-                <div className="text-2xl font-display font-bold tabular-nums text-foreground">{score.barsSurvived}</div>
-                <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Bars</div>
-              </div>
-            </div>
-
-            <div className="h-px bg-border w-full" />
-
-            {/* Game settings */}
-            <div className="p-4 flex items-center justify-center gap-4 text-xs text-muted-foreground/60">
-              <span className="tabular-nums">{bpm} BPM</span>
-              <span className="w-px h-3 bg-border" />
-              <span>{difficultyLabels[difficulty]}</span>
-              {tuplets && (
-                <>
-                  <span className="w-px h-3 bg-border" />
-                  <span>TUPLETS</span>
-                </>
-              )}
-            </div>
-
-            <div className="h-px bg-border w-full" />
-
-            {/* Actions */}
-            <div className="p-6 flex items-center gap-3">
-              {challengeParam && (
-                <div className="relative group">
-                  <button
-                    onClick={handleRetry}
-                    disabled={!canRestart}
-                    className={cn(
-                      "p-2.5 border border-border hover:bg-white/5 transition-colors",
-                      !canRestart && "opacity-50 cursor-not-allowed"
-                    )}
-                    aria-label="Retry same challenge"
-                  >
-                    <RotateCcw className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-white text-[9px] uppercase tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Retry same
-                  </span>
-                </div>
-              )}
-              <Button
-                size="default"
-                onClick={handlePlayAgain}
-                disabled={!canRestart}
-                className={cn("flex-1", !canRestart && "opacity-50")}
-              >
-                PLAY AGAIN
-              </Button>
-              {challengeParam && (
-                <div className="relative group">
-                  <button
-                    onClick={handleCopyLink}
-                    className="p-2.5 border border-border hover:bg-white/5 transition-colors"
-                    aria-label="Copy challenge link"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </button>
-                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-900 text-white text-[9px] uppercase tracking-wider whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Challenge a friend
-                  </span>
-                </div>
-              )}
             </div>
           </PanelContainer>
-
         </div>
       </main>
     </div>
