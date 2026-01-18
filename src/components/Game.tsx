@@ -377,8 +377,8 @@ export function Game() {
         {/* iOS Ringer Warning Modal */}
         {showRingerWarning && (
           <TipModal
-            title="Not hearing anything?"
-            message="Make sure your ringer switch is on. iOS mutes web audio when your phone is in silent mode."
+            title="Playing on iOS?"
+            message="Make sure your ringer switch is on - iOS mutes web audio in silent mode. Also, for fast tempos (160+ BPM), a keyboard works best. Touchscreens can miss rapid taps."
             onDismiss={dismissRingerWarning}
           />
         )}

@@ -15,6 +15,12 @@ export class JudgeEngine {
   private lastHitTime: number = 0
   private readonly inputDebounceMs: number = 40
 
+  // Auto-calibration: rolling window of recent timing errors
+  private recentErrors: number[] = []
+  private readonly autoCalibrationWindowSize: number = 5
+  private readonly autoCalibrationThreshold: number = 8 // Only adjust if avg error > 8ms
+  private readonly autoCalibrationGain: number = 0.5 // Apply 50% of the error as correction
+
   setBpm(bpm: number): void {
     this.bpm = Math.max(40, Math.min(300, bpm))
   }
@@ -25,14 +31,14 @@ export class JudgeEngine {
 
   private getEarlyWindow(): number {
     const sixteenthMs = this.getSixteenthDuration()
-    // 50% of 16th note, min 60ms for human variance
-    return Math.max(60, sixteenthMs * 0.5)
+    // 50% of 16th note + 8ms grace buffer, min 100ms for human variance
+    return Math.max(100, sixteenthMs * 0.5 + 8)
   }
 
   private getLateWindow(): number {
     const sixteenthMs = this.getSixteenthDuration()
-    // 50% of 16th note, min 60ms for human variance
-    return Math.max(60, sixteenthMs * 0.5)
+    // 50% of 16th note + 8ms grace buffer, min 100ms for human variance
+    return Math.max(100, sixteenthMs * 0.5 + 8)
   }
 
   setLatencyOffset(offsetMs: number): void {
@@ -52,6 +58,7 @@ export class JudgeEngine {
   start(): void {
     this.isActive = true
     this.lastHitTime = 0
+    this.recentErrors = []
     this.startMissCheck()
   }
 
@@ -70,7 +77,8 @@ export class JudgeEngine {
     const hitTime = rawHitTime - this.latencyOffsetMs / 1000
 
     // Debounce to filter hardware double-fires
-    if ((hitTime - this.lastHitTime) * 1000 < this.inputDebounceMs) {
+    const timeSinceLastTap = (hitTime - this.lastHitTime) * 1000
+    if (timeSinceLastTap < this.inputDebounceMs) {
       return
     }
     this.lastHitTime = hitTime
@@ -100,6 +108,7 @@ export class JudgeEngine {
     if (deltaMs <= lateWindowMs) {
       rhythmBuffer.markHit(nextOnset.id)
       this.notifyJudge("hit", nextOnset, deltaMs)
+      this.updateAutoCalibration(deltaMs)
       return
     }
 
@@ -128,6 +137,26 @@ export class JudgeEngine {
     }
 
     this.missCheckTimer = requestAnimationFrame(check)
+  }
+
+  private updateAutoCalibration(deltaMs: number): void {
+    this.recentErrors.push(deltaMs)
+    if (this.recentErrors.length > this.autoCalibrationWindowSize) {
+      this.recentErrors.shift()
+    }
+
+    // Only adjust once we have enough samples
+    if (this.recentErrors.length < this.autoCalibrationWindowSize) return
+
+    const avgError = this.recentErrors.reduce((a, b) => a + b, 0) / this.recentErrors.length
+
+    // Only adjust if there's a consistent bias above threshold
+    if (Math.abs(avgError) > this.autoCalibrationThreshold) {
+      const adjustment = avgError * this.autoCalibrationGain
+      this.latencyOffsetMs += adjustment
+      // Clear window after adjustment to avoid over-correcting
+      this.recentErrors = []
+    }
   }
 
   private notifyJudge(result: HitResult, onset: RuntimeOnset | null, timingError: number): void {
