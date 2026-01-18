@@ -25,7 +25,7 @@ interface StoredSettings {
 const DEFAULT_SETTINGS: StoredSettings = {
   bpm: 120,
   difficultyValue: 0,
-  playAlongVolume: 0,
+  playAlongVolume: 0.5,
   groupMode: false,
   includeTuplets: false,
 }
