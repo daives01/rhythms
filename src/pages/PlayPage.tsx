@@ -55,7 +55,8 @@ export function PlayPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const challengeParam = searchParams.get("challenge")
-  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
+  const challengeDataRef = useRef(challengeParam ? decodeChallenge(challengeParam) : null)
+  const challengeData = challengeDataRef.current
 
   // If no valid challenge, redirect to home
   useEffect(() => {

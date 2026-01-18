@@ -131,11 +131,6 @@ export class JudgeEngine {
       // Check if the next unhit note has expired (player missed it)
       if (nextOnset && adjustedTime > nextOnset.timeSec + toleranceSec) {
         const deltaMs = (adjustedTime - nextOnset.timeSec) * 1000
-        console.log(`[Judge] ✗ MISS DETECTED by timer:`)
-        console.log(`  onset=${nextOnset.id} was due at ${nextOnset.timeSec.toFixed(3)}s`)
-        console.log(`  current time=${adjustedTime.toFixed(3)}s (raw=${rawTime.toFixed(3)}s, offset=${this.latencyOffsetMs}ms)`)
-        console.log(`  tolerance=${(toleranceSec * 1000).toFixed(0)}ms, overdue by ${(deltaMs - toleranceSec * 1000).toFixed(1)}ms`)
-        console.log(`  unhit onsets remaining: ${unhitOnsets.length}`)
         this.notifyJudge("miss", nextOnset, deltaMs)
         this.triggerGameOver("miss")
         return
