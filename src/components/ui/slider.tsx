@@ -13,6 +13,8 @@ interface SliderProps {
   max?: number
   step?: number
   snapPoints?: number[]
+  disabled?: boolean
+  animate?: boolean
 }
 
 export function Slider({
@@ -26,18 +28,21 @@ export function Slider({
   max = 100,
   step = 1,
   snapPoints,
+  disabled = false,
+  animate = false,
 }: SliderProps) {
   const percentage = ((value - min) / (max - min)) * 100
   const isActive = value > 0
-  const ledColor = color || "rgb(52, 211, 153)"
+  const baseLedColor = color || "rgb(52, 211, 153)"
+  const ledColor = disabled ? "rgb(63, 63, 70)" : baseLedColor
 
   const inputRef = useRef<HTMLInputElement>(null)
-  const isSnappping = useRef(false)
+  const isSnapping = useRef(false)
   const [isAnimating, setIsAnimating] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
 
   const handleChange = (newValue: number) => {
-    if (!isSnappping.current) {
+    if (!isSnapping.current && !disabled) {
       onValueChange(newValue)
     }
   }
@@ -53,11 +58,11 @@ export function Slider({
     )
 
     setIsAnimating(true)
-    isSnappping.current = true
+    isSnapping.current = true
     onValueChange(nearest)
 
     setTimeout(() => {
-      isSnappping.current = false
+      isSnapping.current = false
       setIsAnimating(false)
     }, 300)
   }
@@ -104,7 +109,7 @@ export function Slider({
                 className={cn(
                   "absolute top-1/2 w-4 h-4 pointer-events-none",
                   isActive && "shadow-[0_0_6px_rgba(52,211,153,0.25)]",
-                  isAnimating && "transition-all duration-300 ease-out"
+                  (isAnimating || animate) && "transition-all duration-300 ease-out"
                 )}
                 style={{
                   left: `${percentage}%`,
@@ -142,13 +147,15 @@ export function Slider({
               min={min}
               max={max}
               step={step}
+              disabled={disabled}
               className={cn(
-                "absolute inset-0 w-full h-full appearance-none cursor-ew-resize bg-transparent z-10",
+                "absolute inset-0 w-full h-full appearance-none bg-transparent z-10",
+                disabled ? "cursor-not-allowed" : "cursor-ew-resize",
                 "[&::-webkit-slider-thumb]:appearance-none",
                 "[&::-webkit-slider-thumb]:w-12",
                 "[&::-webkit-slider-thumb]:h-12",
                 "[&::-webkit-slider-thumb]:bg-transparent",
-                "[&::-webkit-slider-thumb]:cursor-ew-resize",
+                disabled ? "[&::-webkit-slider-thumb]:cursor-not-allowed" : "[&::-webkit-slider-thumb]:cursor-ew-resize",
                 "[&::-webkit-slider-thumb]:shadow-none",
                 "[&::-webkit-slider-thumb]:border-none",
                 "[&::-moz-range-thumb]:w-12",
@@ -156,7 +163,7 @@ export function Slider({
                 "[&::-moz-range-thumb]:bg-transparent",
                 "[&::-moz-range-thumb]:border-none",
                 "[&::-moz-range-thumb]:shadow-none",
-                "[&::-moz-range-thumb]:cursor-ew-resize",
+                disabled ? "[&::-moz-range-thumb]:cursor-not-allowed" : "[&::-moz-range-thumb]:cursor-ew-resize",
                 "[&::-webkit-slider-runnable-track]:bg-transparent",
                 "[&::-moz-range-track]:bg-transparent"
               )}

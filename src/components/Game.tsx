@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { Gauge, Signal, Volume2 } from "lucide-react"
+import { HorizontalSwitch } from "@/components/ui/horizontal-switch"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { Button } from "@/components/ui/button"
@@ -86,7 +87,7 @@ const calculateBPMColor = (bpm: number): string => {
 
 export function Game() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   // Check for challenge in URL (shared challenge link)
   const challengeParam = searchParams.get("challenge")
@@ -141,13 +142,33 @@ export function Game() {
     navigate(`/play?challenge=${encoded}`)
   }
 
-  const difficultyLabels: Record<Difficulty, string> = { easy: "Easy", medium: "Normal", hard: "Hard" }
-
   // Show challenge landing page if there's a valid challenge in URL
   const showChallengeLanding = !!challengeData
 
-  // Get display values for challenge
-  const challengeDifficulty = challengeData ? getDifficultyFromValue(challengeData.difficulty) : difficulty
+  // Challenge mode toggle - when on, settings are locked to challenge values
+  const [challengeMode, setChallengeMode] = useState(true)
+  const [isAnimatingSliders, setIsAnimatingSliders] = useState(false)
+
+  // Snap settings to challenge values when challenge mode is enabled
+  const handleChallengeModeChange = (enabled: boolean) => {
+    setChallengeMode(enabled)
+    if (enabled && challengeData) {
+      setIsAnimatingSliders(true)
+      setBpm(challengeData.bpm)
+      setDifficultyValue(challengeData.difficulty)
+      setIncludeTuplets(challengeData.tuplets)
+      setTimeout(() => setIsAnimatingSliders(false), 300)
+    }
+  }
+
+  // Initialize settings to challenge values on mount
+  useEffect(() => {
+    if (challengeData && challengeMode) {
+      setBpm(challengeData.bpm)
+      setDifficultyValue(challengeData.difficulty)
+      setIncludeTuplets(challengeData.tuplets)
+    }
+  }, [])
 
   return (
     <div
@@ -161,48 +182,55 @@ export function Game() {
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         {/* Challenge Landing Page */}
         {showChallengeLanding && challengeData && (
-          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full">
-            {/* Left column: Title */}
-            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
-              <h2
-                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+            {/* Left column: Title + Challenge Toggle */}
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center animate-fade-in-up">
+              <h1
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground uppercase"
                 style={{ letterSpacing: "0.1em" }}
               >
-                challenge
-              </h2>
-              <p className="text-muted-foreground/60 text-xs mt-1 animate-fade-in-up">
-                Someone sent you a rhythm challenge
-              </p>
+                rhythms
+              </h1>
+              <HorizontalSwitch
+                checked={challengeMode}
+                onCheckedChange={handleChallengeModeChange}
+                label="Challenge"
+                className="mt-3"
+              />
             </div>
 
-            {/* Right column: Challenge panel */}
-            <PanelContainer className="w-full landscape:w-[400px] landscape:shrink-0 animate-fade-in-up">
-              {/* Challenge specs */}
-              <div className="p-6 flex items-center justify-center gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-display font-bold tabular-nums text-foreground">{challengeData.bpm}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">BPM</div>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div className="text-center">
-                  <div className="text-2xl font-display font-bold text-foreground">{difficultyLabels[challengeDifficulty]}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Level</div>
-                </div>
-                {challengeData.tuplets && (
-                  <>
-                    <div className="w-px h-8 bg-border" />
-                    <div className="text-center">
-                      <div className="text-2xl font-display font-bold text-foreground">On</div>
-                      <div className="text-[9px] uppercase tracking-wider text-muted-foreground/50">Tuplets</div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="h-px bg-border w-full" />
-
-              {/* Settings */}
-              <div className="p-6">
+            {/* Right column: Mixer panel (same as normal menu) */}
+            <PanelContainer className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up">
+              {/* Fader controls */}
+              <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
+                <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
+                <Slider
+                  value={bpm}
+                  onValueChange={setBpm}
+                  min={60}
+                  max={180}
+                  step={5}
+                  icon={Gauge}
+                  label="BPM"
+                  color={calculateBPMColor(bpm)}
+                  units={["60", "120", "180"]}
+                  disabled={challengeMode}
+                  animate={isAnimatingSliders}
+                />
+                <Slider
+                  value={difficultyValue}
+                  onValueChange={setDifficultyValue}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  icon={Signal}
+                  label="Level"
+                  color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
+                  units={["EASY", "NORMAL", "HARD"]}
+                  snapPoints={[0, 0.5, 1]}
+                  disabled={challengeMode}
+                  animate={isAnimatingSliders}
+                />
                 <Slider
                   value={playAlongVolume}
                   onValueChange={setPlayAlongVolume}
@@ -216,31 +244,41 @@ export function Game() {
                 />
               </div>
 
+              {/* Full-width divider */}
               <div className="h-px bg-border w-full" />
 
               {/* Controls row */}
               <div className="flex items-stretch">
-                <div className="flex-1 p-6 flex items-start justify-center">
+                {/* Left group: switches + calibrate */}
+                <div className="flex-1 p-6 flex items-start justify-evenly">
                   <AmpSwitch
                     label="Practice"
                     checked={groupMode}
                     onCheckedChange={setGroupMode}
                   />
+                  <AmpSwitch
+                    label="Tuplets"
+                    checked={includeTuplets}
+                    onCheckedChange={setIncludeTuplets}
+                    disabled={challengeMode}
+                  />
+                  <SoundboardButton
+                    label="Calibrate"
+                    onClick={() => navigate("/calibration")}
+                    active={isCalibrated}
+                    warning={!isCalibrated}
+                  />
                 </div>
+
+                {/* Vertical divider */}
                 <div className="w-px bg-border" />
+
+                {/* Right group: play */}
                 <div className="p-6 flex items-start justify-center">
-                  <PlayButton onClick={() => startGame(challengeData)} />
+                  <PlayButton onClick={() => challengeMode ? startGame(challengeData) : startGame()} />
                 </div>
               </div>
             </PanelContainer>
-
-            {/* Go to menu link */}
-            <button
-              onClick={() => setSearchParams({})}
-              className="absolute bottom-4 text-xs text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors animate-fade-in-up"
-            >
-              Go to menu instead
-            </button>
           </div>
         )}
 

@@ -5,9 +5,10 @@ interface AmpSwitchProps {
   onCheckedChange: (checked: boolean) => void
   label?: string
   className?: string
+  disabled?: boolean
 }
 
-export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwitchProps) {
+export function AmpSwitch({ checked, onCheckedChange, label, className, disabled = false }: AmpSwitchProps) {
   return (
     <div className={cn("flex flex-col items-center gap-2", className)}>
       {/* Label text that lights up when on */}
@@ -15,9 +16,11 @@ export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwi
         <span 
           className={cn(
             "text-xs font-medium uppercase tracking-wider transition-colors duration-200",
-            checked 
-              ? "text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" 
-              : "text-muted-foreground/50"
+            disabled
+              ? "text-muted-foreground/30"
+              : checked 
+                ? "text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.5)]" 
+                : "text-muted-foreground/50"
           )}
         >
           {label}
@@ -29,9 +32,11 @@ export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwi
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => onCheckedChange(!checked)}
+        disabled={disabled}
+        onClick={() => !disabled && onCheckedChange(!checked)}
         className={cn(
-          "relative w-10 h-16 cursor-pointer overflow-hidden",
+          "relative w-10 h-16 overflow-hidden",
+          disabled ? "cursor-not-allowed" : "cursor-pointer",
           "bg-muted",
           "border border-border",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -74,9 +79,11 @@ export function AmpSwitch({ checked, onCheckedChange, label, className }: AmpSwi
       <div 
         className={cn(
           "w-2.5 h-2.5 transition-all duration-200 border border-zinc-700",
-          checked 
-            ? "bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.7)]" 
-            : "bg-emerald-950"
+          disabled
+            ? "bg-zinc-800"
+            : checked 
+              ? "bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.7)]" 
+              : "bg-emerald-950"
         )}
       />
     </div>

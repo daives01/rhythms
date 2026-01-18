@@ -28,11 +28,11 @@ export function CalibrationPage() {
 
   const handleComplete = (offset: number) => {
     saveLatencyOffset(offset)
-    navigate("/")
+    navigate(-1)
   }
 
   const handleCancel = () => {
-    navigate("/")
+    navigate(-1)
   }
 
   return (
