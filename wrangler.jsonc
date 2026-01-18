@@ -2,6 +2,7 @@
   "name": "rhythms",
   "compatibility_date": "2026-01-17",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
   }
 }
