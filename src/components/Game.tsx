@@ -4,8 +4,8 @@ import { Gauge, Signal, Volume2 } from "lucide-react"
 import { HorizontalSwitch } from "@/components/ui/horizontal-switch"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
-import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { TipModal } from "@/components/ui/tip-modal"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
@@ -376,27 +376,11 @@ export function Game() {
 
         {/* iOS Ringer Warning Modal */}
         {showRingerWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 p-4">
-            <div className="bg-muted border border-border p-5 max-w-xs w-full animate-fade-in">
-              <h3 className="text-sm font-semibold text-foreground mb-2">
-                Not hearing anything?
-              </h3>
-              <p className="text-xs text-muted-foreground mb-5">
-                Make sure your ringer switch is on. iOS mutes web audio when your phone is in silent mode.
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button onClick={() => dismissRingerWarning(false)} className="w-full">
-                  Got it
-                </Button>
-                <button
-                  onClick={() => dismissRingerWarning(true)}
-                  className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors py-2"
-                >
-                  Don't show again
-                </button>
-              </div>
-            </div>
-          </div>
+          <TipModal
+            title="Not hearing anything?"
+            message="Make sure your ringer switch is on. iOS mutes web audio when your phone is in silent mode."
+            onDismiss={dismissRingerWarning}
+          />
         )}
       </main>
     </div>

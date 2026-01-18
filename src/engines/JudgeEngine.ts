@@ -6,7 +6,6 @@ type JudgeCallback = (result: HitResult, onset: RuntimeOnset | null, timingError
 type GameOverCallback = (reason: "miss" | "extra") => void
 
 export class JudgeEngine {
-  private baseToleranceMs: number = 100
   private bpm: number = 120
   private latencyOffsetMs: number = 0
   private onJudgeCallbacks: Set<JudgeCallback> = new Set()
@@ -14,37 +13,26 @@ export class JudgeEngine {
   private missCheckTimer: number | null = null
   private isActive: boolean = false
   private lastHitTime: number = 0
-  private readonly inputDebounceMs: number = 20
-
-  setTolerance(toleranceMs: number): void {
-    this.baseToleranceMs = Math.max(40, Math.min(150, toleranceMs))
-  }
+  private readonly inputDebounceMs: number = 40
 
   setBpm(bpm: number): void {
     this.bpm = Math.max(40, Math.min(300, bpm))
   }
 
-  private getScaledTolerance(): number {
-    const beatDurationMs = (60 / this.bpm) * 1000
-    const sixteenthDurationMs = beatDurationMs / 4
-
-    // Cap at 60% of a sixteenth note to prevent hitting wrong notes
-    // but ensure a minimum floor of 50ms so high BPM still feels playable
-    const maxToleranceForBpm = Math.max(50, sixteenthDurationMs * 0.6)
-
-    // Gentle BPM scaling - reduce tolerance slightly at higher BPM
-    const bpmScale = Math.max(0.7, 1 - (this.bpm - 60) / 400)
-    const scaledBase = this.baseToleranceMs * bpmScale
-
-    return Math.min(scaledBase, maxToleranceForBpm)
+  private getSixteenthDuration(): number {
+    return (60 / this.bpm) * 1000 / 4
   }
 
   private getEarlyWindow(): number {
-    const tolerance = this.getScaledTolerance()
-    const beatDurationMs = (60 / this.bpm) * 1000
-    // Allow hitting up to 40% of a beat early, but scale with tolerance
-    const maxEarly = beatDurationMs * 0.4
-    return Math.min(tolerance * 2, maxEarly)
+    const sixteenthMs = this.getSixteenthDuration()
+    // 50% of 16th note, min 60ms for human variance
+    return Math.max(60, sixteenthMs * 0.5)
+  }
+
+  private getLateWindow(): number {
+    const sixteenthMs = this.getSixteenthDuration()
+    // 50% of 16th note, min 60ms for human variance
+    return Math.max(60, sixteenthMs * 0.5)
   }
 
   setLatencyOffset(offsetMs: number): void {
@@ -81,8 +69,7 @@ export class JudgeEngine {
     const rawHitTime = transportEngine.now()
     const hitTime = rawHitTime - this.latencyOffsetMs / 1000
 
-    // Debounce to prevent double-fires from touch/pointer events
-    // 50ms is short enough to allow fast 16th notes at high BPM
+    // Debounce to filter hardware double-fires
     if ((hitTime - this.lastHitTime) * 1000 < this.inputDebounceMs) {
       return
     }
@@ -90,32 +77,33 @@ export class JudgeEngine {
 
     const unhitOnsets = rhythmBuffer.getUnhitOnsets()
     const nextOnset = unhitOnsets[0]
+    const earlyWindowMs = this.getEarlyWindow()
 
+    // No notes left to hit → extra tap
     if (!nextOnset) {
       this.notifyJudge("miss", null, 0)
       this.triggerGameOver("extra")
       return
     }
 
-    const toleranceMs = this.getScaledTolerance()
-    const earlyWindowMs = this.getEarlyWindow()
     const deltaMs = (hitTime - nextOnset.timeSec) * 1000
+    const lateWindowMs = this.getLateWindow()
 
-    // Within hit window - register as hit
-    if (deltaMs >= -earlyWindowMs && deltaMs <= toleranceMs) {
-      rhythmBuffer.markHit(nextOnset.id)
-      this.notifyJudge("hit", nextOnset, deltaMs)
-      return
-    }
-
-    // Too early (before early window) - extra note
+    // Too early → extra tap
     if (deltaMs < -earlyWindowMs) {
       this.notifyJudge("miss", null, deltaMs)
       this.triggerGameOver("extra")
       return
     }
 
-    // Too late (after tolerance) - let miss check handle game over
+    // Within window → hit
+    if (deltaMs <= lateWindowMs) {
+      rhythmBuffer.markHit(nextOnset.id)
+      this.notifyJudge("hit", nextOnset, deltaMs)
+      return
+    }
+
+    // Too late → miss check will handle it
   }
 
   private startMissCheck(): void {
@@ -124,12 +112,12 @@ export class JudgeEngine {
 
       const rawTime = transportEngine.now()
       const adjustedTime = rawTime - this.latencyOffsetMs / 1000
-      const toleranceSec = this.getScaledTolerance() / 1000
+      const lateWindowSec = this.getLateWindow() / 1000
       const unhitOnsets = rhythmBuffer.getUnhitOnsets()
       const nextOnset = unhitOnsets[0]
 
-      // Check if the next unhit note has expired (player missed it)
-      if (nextOnset && adjustedTime > nextOnset.timeSec + toleranceSec) {
+      // Note expires after the late window passes
+      if (nextOnset && adjustedTime > nextOnset.timeSec + lateWindowSec) {
         const deltaMs = (adjustedTime - nextOnset.timeSec) * 1000
         this.notifyJudge("miss", nextOnset, deltaMs)
         this.triggerGameOver("miss")

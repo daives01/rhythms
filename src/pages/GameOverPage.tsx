@@ -7,6 +7,7 @@ import { Slider } from "@/components/ui/slider"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
+import { TipModal } from "@/components/ui/tip-modal"
 
 import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
@@ -116,6 +117,14 @@ interface LocationState {
   gameOverReason: "miss" | "extra"
 }
 
+const SURFACE_TIP_KEY = "surface-tip-dismissed"
+const SURFACE_TIP_SESSION_KEY = "surface-tip-session-shown"
+
+function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+}
+
 export function GameOverPage() {
   const [searchParams] = useSearchParams()
   const challengeParam = searchParams.get("challenge")
@@ -131,6 +140,24 @@ export function GameOverPage() {
 
   const score = state?.score ?? { barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 }
   const gameOverReason = state?.gameOverReason ?? "miss"
+
+  // Surface tip warning for mobile users who fail quickly
+  const [showSurfaceTip, setShowSurfaceTip] = useState(() => {
+    if (typeof window === "undefined") return false
+    if (!isMobileDevice()) return false
+    const dismissed = localStorage.getItem(SURFACE_TIP_KEY) === "true"
+    const alreadyShownSession = sessionStorage.getItem(SURFACE_TIP_SESSION_KEY) === "true"
+    const failedQuickly = score.timeSurvived < 5
+    return failedQuickly && !dismissed && !alreadyShownSession
+  })
+
+  const dismissSurfaceTip = (dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      localStorage.setItem(SURFACE_TIP_KEY, "true")
+    }
+    sessionStorage.setItem(SURFACE_TIP_SESSION_KEY, "true")
+    setShowSurfaceTip(false)
+  }
 
   // Editable settings (initialized from challenge or user settings)
   const [bpm, setBpm] = useState(() => challengeData?.bpm ?? initialSettings.bpm)
@@ -339,6 +366,15 @@ export function GameOverPage() {
             </div>
           </PanelContainer>
         </div>
+
+        {/* Surface Tip Modal for mobile users who fail quickly */}
+        {showSurfaceTip && (
+          <TipModal
+            title="Tip: Set your phone down"
+            message="Try placing your phone on a flat surface instead of holding it. This can make tapping more accurate and consistent."
+            onDismiss={dismissSurfaceTip}
+          />
+        )}
       </main>
     </div>
   )

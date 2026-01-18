@@ -142,8 +142,6 @@ export function PlayPage() {
       rhythmBuffer.setDifficulty(gameDifficulty)
       rhythmBuffer.setIncludeTuplets(gameTuplets)
 
-      const toleranceMap: Record<Difficulty, number> = { easy: 130, medium: 100, hard: 70 }
-      judgeEngine.setTolerance(toleranceMap[gameDifficulty])
       judgeEngine.setBpm(gameBpm)
       judgeEngine.setLatencyOffset(latencyOffset)
       transportEngine.setRhythmSoundVolume(playAlongVolume)
