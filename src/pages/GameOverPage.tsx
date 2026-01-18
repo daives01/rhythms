@@ -272,19 +272,25 @@ export function GameOverPage() {
                 </button>
                 <button
                   onClick={handleCopyLink}
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                  className="relative flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 >
-                  {copied ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-400">Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      Share
-                    </>
-                  )}
+                  <span className="invisible flex items-center gap-1.5">
+                    <Copy className="w-3 h-3" />
+                    Challenge a Friend
+                  </span>
+                  <span className="absolute inset-0 flex items-center justify-center gap-1.5">
+                    {copied ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span className="text-emerald-400">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        Challenge a Friend
+                      </>
+                    )}
+                  </span>
                 </button>
               </div>
             )}
