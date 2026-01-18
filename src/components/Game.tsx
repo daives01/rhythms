@@ -137,9 +137,9 @@ export function Game() {
     // Unlock audio in click handler context (required for iOS/Safari)
     transportEngine.unlockAudio()
 
-    // Navigate to play page with challenge
+    // Navigate to play page with challenge (pass state to indicate audio was unlocked via user gesture)
     const encoded = encodeChallenge(gameChallenge)
-    navigate(`/play?challenge=${encoded}`)
+    navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
   }
 
   // Show challenge landing page if there's a valid challenge in URL

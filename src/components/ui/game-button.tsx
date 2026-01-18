@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 
 interface GameButtonProps {
   label: string
-  onClick: () => void
+  onClick?: () => void
   active?: boolean
   warning?: boolean
   className?: string

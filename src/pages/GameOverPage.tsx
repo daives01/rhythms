@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
-import { cn } from "@/lib/utils"
+
 import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
 
@@ -141,14 +141,20 @@ export function GameOverPage() {
   const [isCalibrated] = useState(hasCalibrated)
 
   const difficulty = getDifficultyFromValue(difficultyValue)
-  const finalScore = calculateScore(score.totalHits, bpm, difficulty, score.timeSurvived)
+  
+  // Calculate score once based on the challenge settings used during the run
+  const [finalScore] = useState(() => {
+    const runBpm = challengeData?.bpm ?? initialSettings.bpm
+    const runDifficulty = getDifficultyFromValue(challengeData?.difficulty ?? initialSettings.difficultyValue)
+    return calculateScore(score.totalHits, runBpm, runDifficulty, score.timeSurvived)
+  })
 
   useEffect(() => {
     saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
   }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
 
   useEffect(() => {
-    const timer = setTimeout(() => setCanRestart(true), 800)
+    const timer = setTimeout(() => setCanRestart(true), 500)
     return () => clearTimeout(timer)
   }, [])
 
@@ -161,13 +167,13 @@ export function GameOverPage() {
     }
     transportEngine.unlockAudio()
     const encoded = encodeChallenge(gameChallenge)
-    navigate(`/play?challenge=${encoded}`)
+    navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
   }
 
   const handleRetry = () => {
     if (!challengeParam || !challengeData) return
     transportEngine.unlockAudio()
-    navigate(`/play?challenge=${challengeParam}`)
+    navigate(`/play?challenge=${challengeParam}`, { state: { audioUnlocked: true } })
   }
 
   const handleCopyLink = async () => {
@@ -231,12 +237,8 @@ export function GameOverPage() {
             {challengeParam && (
               <div className="flex items-center gap-2 mt-4">
                 <button
-                  onClick={handleRetry}
-                  disabled={!canRestart}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors",
-                    !canRestart && "opacity-50 cursor-not-allowed"
-                  )}
+                  onClick={canRestart ? handleRetry : undefined}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Retry
@@ -332,7 +334,7 @@ export function GameOverPage() {
 
               {/* Right group: play */}
               <div className="p-6 flex items-start justify-center">
-                <PlayButton onClick={() => startGame()} />
+                <PlayButton onClick={canRestart ? () => startGame() : undefined} />
               </div>
             </div>
           </PanelContainer>

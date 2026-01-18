@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Tuplet, RenderContext, Dot } from "vexflow"
 import type { RuntimeBar, RuntimeOnset, TupletInfo } from "@/types"
 
-interface NotationRendererProps {
-  bars: RuntimeBar[]
-  currentBar: number
-  currentBeat: number
+export interface PositionData {
+  bar: number
+  beat: number
   beatFraction: number
   currentTime: number
+}
+
+interface NotationRendererProps {
+  bars: RuntimeBar[]
+  getPosition: () => PositionData | null
 }
 
 function barToGrid(bar: RuntimeBar): {
@@ -18,7 +22,6 @@ function barToGrid(bar: RuntimeBar): {
   const slotToOnset = new Map<number, typeof bar.onsets[0]>()
 
   for (const onset of bar.onsets) {
-    // Only process regular (d=4) onsets for the grid
     if (onset.d === 4) {
       const slot = onset.beatIndex * 4 + onset.n
       grid[slot] = true
@@ -77,7 +80,6 @@ function processBeat(
         restCount++
       }
 
-      // Check if there's a note after the rests (for rest absorption)
       const hasNoteAfterRests = i + 1 + restCount < 4
 
       let note: StaveNote
@@ -88,14 +90,10 @@ function processBeat(
         note = new StaveNote({ keys: ["c/5"], duration: "q", stemDirection: 1 })
         i += 4
       } else if (i === 0 && restCount === 2 && hasNoteAfterRests) {
-        // Dotted 8th: absorb 2 rests when note follows at slot 3
-        // e.g., 8th + 16th rest + 16th → dotted 8th + 16th
         note = new StaveNote({ keys: ["c/5"], duration: "8d", stemDirection: 1 })
         Dot.buildAndAttach([note], { all: true })
         i += 3
       } else if (hasNoteAfterRests && restCount >= 1) {
-        // 8th note: absorb 1 rest when note follows
-        // e.g., 16th + 16th + 16th rest + 16th → 16th + 8th + 16th
         note = new StaveNote({ keys: ["c/5"], duration: "8", stemDirection: 1 })
         i += 2
       } else if (i % 2 === 0 && restCount >= 1) {
@@ -116,21 +114,17 @@ function processBeat(
       let note: StaveNote
 
       if (i === 0 && restCount === 4) {
-        // Full beat rest = quarter rest
         note = new StaveNote({ keys: ["b/4"], duration: "qr" })
         i += 4
       } else if (i === 0 && restCount === 3) {
-        // 3 sixteenths from beat start = dotted eighth rest
         note = new StaveNote({ keys: ["b/4"], duration: "8dr" })
         Dot.buildAndAttach([note], { all: true })
         i += 3
       } else if (i === 1 && restCount === 3) {
-        // 3 sixteenths from slot 1 = dotted eighth rest
         note = new StaveNote({ keys: ["b/4"], duration: "8dr" })
         Dot.buildAndAttach([note], { all: true })
         i += 3
       } else if (i % 2 === 0 && restCount >= 2) {
-        // 2 sixteenths on even slot = eighth rest
         note = new StaveNote({ keys: ["b/4"], duration: "8r" })
         i += 2
       } else {
@@ -145,9 +139,7 @@ function processBeat(
   return result
 }
 
-function combineConsecutiveRests(
-  notes: StaveNote[]
-): StaveNote[] {
+function combineConsecutiveRests(notes: StaveNote[]): StaveNote[] {
   const result: StaveNote[] = []
   let i = 0
 
@@ -160,7 +152,6 @@ function combineConsecutiveRests(
       continue
     }
 
-    // Try to combine consecutive rests
     let j = i + 1
     let totalDuration = getDurationInSixteenths(note.getDuration())
 
@@ -169,13 +160,11 @@ function combineConsecutiveRests(
       j++
     }
 
-    // Create combined rest if multiple rests found
     if (j > i + 1) {
       const combined = createCombinedRest(totalDuration)
       if (combined) {
         result.push(combined)
       } else {
-        // Fallback: add original rests if combination fails
         for (let k = i; k < j; k++) {
           result.push(notes[k])
         }
@@ -192,10 +181,10 @@ function combineConsecutiveRests(
 
 function getDurationInSixteenths(duration: string): number {
   switch (duration) {
-    case "qr": return 4   // quarter rest = 4 sixteenths
-    case "8r": return 2   // eighth rest = 2 sixteenths
-    case "8dr": return 3  // dotted eighth rest = 3 sixteenths
-    case "16r": return 1  // sixteenth rest = 1 sixteenth
+    case "qr": return 4
+    case "8r": return 2
+    case "8dr": return 3
+    case "16r": return 1
     default: return 0
   }
 }
@@ -214,7 +203,6 @@ function createCombinedRest(sixteenths: number): StaveNote | null {
     case 4:
       return new StaveNote({ keys: ["b/4"], duration: "qr" })
     default:
-      // For larger durations, create multiple rests
       return null
   }
 }
@@ -251,14 +239,11 @@ function gridToVexNotes(
     beamGroups.push(beamable)
   }
 
-  // Combine consecutive rests within the note array
   const combinedNotes = combineConsecutiveRests(allNotes)
 
   return { notes: combinedNotes, beamGroups, noteToOnset }
 }
 
-// Fixed bar width - large enough for 16 sixteenth notes with tuplets
-// VexFlow needs significant space to avoid note overflow
 const FIXED_BAR_WIDTH = 300
 const FIXED_FIRST_BAR_WIDTH = 360
 
@@ -274,23 +259,14 @@ function createTupletNotes(
   const notes: StaveNote[] = []
   const { numNotes, notesOccupied } = group.tuplet
   
-  // Determine duration based on tuplet subdivision.
-  // In your data model:
-  // - d=3 => triplet subdivision within the beat (render as eighth-note triplet)
-  // - d=5 => quintuplet subdivision (your existing use is 16th quintuplet)
   const subdivisionD = group.onsets[0]?.d ?? numNotes
   const duration = subdivisionD === 3 ? "8" : "16"
 
-  // Build a lookup so we can render rests for missing tuplet positions.
-  // Example: "hit + rest + hit" triplet => onsets at n=0 and n=2, but we must
-  // still draw a rest at n=1.
   const onsetByIndex = new Map<number, RuntimeOnset>()
   for (const onset of group.onsets) {
     onsetByIndex.set(onset.n, onset)
   }
 
-  // Create exactly numNotes tickables: notes where there are onsets, rests where
-  // there are gaps.
   for (let i = 0; i < numNotes; i++) {
     const onset = onsetByIndex.get(i)
     if (onset) {
@@ -303,7 +279,6 @@ function createTupletNotes(
     }
   }
   
-  // Create the tuplet bracket
   const tuplet = new Tuplet(notes, {
     numNotes: numNotes,
     notesOccupied: notesOccupied,
@@ -364,10 +339,7 @@ function renderBar(
   const beamsWithNotes: { beam: Beam; notes: StaveNote[] }[] = []
   const tupletObjects: Tuplet[] = []
   
-  // Check if bar has tuplets
   if (hasTuplets(bar)) {
-    // For bars with tuplets, we need a different approach
-    // Process beat by beat, handling tuplets specially
     const allNotes: StaveNote[] = []
     const tupletGroups = groupTupletsByBeat(bar)
     
@@ -375,21 +347,15 @@ function renderBar(
       const tupletGroup = tupletGroups.find((g) => g.beatIndex === beat)
       
       if (tupletGroup) {
-        // This beat has a tuplet
         const { notes, tuplet } = createTupletNotes(tupletGroup, noteToOnset)
         allNotes.push(...notes)
         tupletObjects.push(tuplet)
-        
-        // Beam tuplet notes, but do NOT beam across rests.
         beamsWithNotes.push(...createBeamsSkippingRests(notes))
       } else {
-        // Check for regular onsets on this beat
         const beatOnsets = bar.onsets.filter((o) => o.beatIndex === beat && o.d === 4)
         if (beatOnsets.length === 0) {
-          // Add quarter rest
           allNotes.push(new StaveNote({ keys: ["b/4"], duration: "qr" }))
         } else {
-          // Process regular onsets for this beat using grid approach
           const beatGrid = new Array(4).fill(false)
           const beatSlotToOnset = new Map<number, RuntimeOnset>()
           for (const onset of beatOnsets) {
@@ -423,7 +389,6 @@ function renderBar(
     voice.setStrict(false)
     voice.addTickables(allNotes)
     
-    // Use explicit width to prevent overflow - leave padding for bar lines
     const noteAreaWidth = width - (isFirst ? 80 : 20)
     new Formatter().joinVoices([voice]).format([voice], noteAreaWidth, { alignRests: true })
     voice.draw(ctx, stave)
@@ -436,13 +401,11 @@ function renderBar(
       tuplet.setContext(ctx).draw()
     }
   } else {
-    // Original logic for bars without tuplets
     const { grid, slotToOnset } = barToGrid(bar)
     const { notes, beamGroups, noteToOnset: gridNoteToOnset } = gridToVexNotes(grid, slotToOnset)
 
     if (notes.length === 0) return { noteToOnset: new Map(), beamsWithNotes: [] }
 
-    // Copy to our noteToOnset
     gridNoteToOnset.forEach((onset, note) => noteToOnset.set(note, onset))
 
     const voice = new Voice({ numBeats: 4, beatValue: 4 })
@@ -456,7 +419,6 @@ function renderBar(
       }
     }
 
-    // Use explicit width to prevent overflow
     const noteAreaWidth = width - (isFirst ? 80 : 20)
     new Formatter().joinVoices([voice]).format([voice], noteAreaWidth, { alignRests: true })
     voice.draw(ctx, stave)
@@ -469,65 +431,162 @@ function renderBar(
   return { noteToOnset, beamsWithNotes }
 }
 
-export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, currentTime }: NotationRendererProps) {
+interface BarLayout {
+  barIndex: number
+  localX: number
+  width: number
+}
+
+export function NotationRenderer({ bars, getPosition }: NotationRendererProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<HTMLDivElement>(null)
-  const [dimensions, setDimensions] = useState({ width: 800, height: 150 })
+  const animationRef = useRef<number | null>(null)
   const barResultsRef = useRef<BarRenderResult[]>([])
+  const layoutRef = useRef<{
+    barLayouts: BarLayout[]
+    leftPadding: number
+    totalWidth: number
+    containerWidth: number
+  } | null>(null)
+  const lastHighlightTimeRef = useRef<number>(-1)
 
-  useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setDimensions({
-          width: Math.max(400, rect.width),
-          height: 150,
-        })
-      }
+  // Compute bar layout once when bars change
+  const computeLayout = useCallback((containerWidth: number) => {
+    const leftPadding = containerWidth * 0.15
+    const barLayouts: BarLayout[] = []
+    let x = leftPadding
+
+    for (const bar of bars) {
+      const width = bar.barIndex === 0 ? FIXED_FIRST_BAR_WIDTH : FIXED_BAR_WIDTH
+      barLayouts.push({ barIndex: bar.barIndex, localX: x, width })
+      x += width
     }
 
-    updateDimensions()
-    window.addEventListener("resize", updateDimensions)
-    return () => window.removeEventListener("resize", updateDimensions)
+    return { barLayouts, leftPadding, totalWidth: x, containerWidth }
+  }, [bars])
+
+  // Calculate scroll position for given position data
+  const calculateScrollPosition = useCallback((pos: PositionData, layout: typeof layoutRef.current) => {
+    if (!layout || layout.barLayouts.length === 0) return 0
+
+    const { barLayouts, leftPadding, totalWidth, containerWidth } = layout
+    const barLayout = barLayouts.find(b => b.barIndex === pos.bar)
+
+    if (barLayout) {
+      const beatProgress = (pos.beat + pos.beatFraction) / 4
+      const scrollPos = barLayout.localX + barLayout.width * beatProgress - containerWidth * 0.15
+      return scrollPos
+    }
+
+    // Past last bar
+    const lastBar = barLayouts[barLayouts.length - 1]
+    if (pos.bar > lastBar.barIndex) {
+      return totalWidth - containerWidth * 0.15
+    }
+
+    // Before first bar
+    return leftPadding - containerWidth * 0.15
   }, [])
 
-  // Fixed bar widths - small screens just see less bars ahead
-  const barWidths = bars.map((bar) => 
-    bar.barIndex === 0 ? FIXED_FIRST_BAR_WIDTH : FIXED_BAR_WIDTH
-  )
+  // Apply highlighting based on current time
+  const applyHighlighting = useCallback((currentTime: number) => {
+    const baseColor = "#e8dcc8"
+    const goldColor = "#f59e0b"
 
-  // Add left padding so first bar starts further right (allows immediate scrolling)
-  const leftPadding = dimensions.width * 0.15
+    const applyColor = (elem: Element | null, color: string) => {
+      if (!elem) return
+      elem.querySelectorAll("*").forEach((child) => {
+        const svg = child as SVGElement
+        if (svg.getAttribute("fill") && svg.getAttribute("fill") !== "none") {
+          svg.setAttribute("fill", color)
+          svg.style.fill = color
+        }
+        if (svg.getAttribute("stroke") && svg.getAttribute("stroke") !== "none") {
+          svg.setAttribute("stroke", color)
+          svg.style.stroke = color
+        }
+      })
+    }
 
-  // Calculate local positions for rendering (where each bar is drawn in the SVG)
-  const barPositions: number[] = []
-  let x = leftPadding
-  for (const w of barWidths) {
-    barPositions.push(x)
-    x += w
-  }
-  const totalWidth = x
+    for (const { noteToOnset, beamsWithNotes } of barResultsRef.current) {
+      noteToOnset.forEach((onset, note) => {
+        const el = note.getSVGElement()
+        if (el) applyColor(el, currentTime >= onset.timeSec ? goldColor : baseColor)
+      })
 
-  // Render notation - only when bars/dimensions change
+      for (const { beam, notes } of beamsWithNotes) {
+        const allHit = notes.every((n) => {
+          const onset = noteToOnset.get(n)
+          return onset && currentTime >= onset.timeSec
+        })
+        const el = beam.getSVGElement()
+        if (el) applyColor(el, allHit ? goldColor : baseColor)
+      }
+    }
+  }, [])
+
+  // Animation loop - runs independently of React renders
+  const runAnimationLoop = useCallback(() => {
+    const animate = () => {
+      const pos = getPosition()
+      
+      if (pos && svgRef.current && layoutRef.current) {
+        // Update scroll position directly on DOM
+        const scrollPos = calculateScrollPosition(pos, layoutRef.current)
+        svgRef.current.style.transform = `translateX(${-scrollPos}px)`
+
+        // Update highlighting only when time changes significantly (every ~16ms is fine)
+        if (Math.abs(pos.currentTime - lastHighlightTimeRef.current) > 0.01) {
+          applyHighlighting(pos.currentTime)
+          lastHighlightTimeRef.current = pos.currentTime
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(animate)
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
+  }, [getPosition, calculateScrollPosition, applyHighlighting])
+
+  // Handle resize
   useEffect(() => {
-    if (!svgRef.current || bars.length === 0) return
+    const updateLayout = () => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const containerWidth = Math.max(400, rect.width)
+      layoutRef.current = computeLayout(containerWidth)
+    }
+
+    updateLayout()
+    window.addEventListener("resize", updateLayout)
+    return () => window.removeEventListener("resize", updateLayout)
+  }, [computeLayout])
+
+  // Render VexFlow notation when bars change
+  useEffect(() => {
+    if (!svgRef.current || !containerRef.current || bars.length === 0) return
+
+    const rect = containerRef.current.getBoundingClientRect()
+    const containerWidth = Math.max(400, rect.width)
+    const layout = computeLayout(containerWidth)
+    layoutRef.current = layout
 
     svgRef.current.innerHTML = ""
 
     const renderer = new Renderer(svgRef.current, Renderer.Backends.SVG)
-    renderer.resize(totalWidth, dimensions.height)
+    renderer.resize(layout.totalWidth, 150)
     const ctx = renderer.getContext()
 
     const allBarResults: BarRenderResult[] = []
 
-    bars.forEach((bar, index) => {
-      const isFirst = bar.barIndex === 0
-      const barX = barPositions[index]
-      const barW = barWidths[index] - 2
+    for (const barLayout of layout.barLayouts) {
+      const bar = bars.find(b => b.barIndex === barLayout.barIndex)
+      if (!bar) continue
 
-      const result = renderBar(ctx, bar, barX, 30, barW, isFirst)
+      const isFirst = bar.barIndex === 0
+      const result = renderBar(ctx, bar, barLayout.localX, 30, barLayout.width - 2, isFirst)
       allBarResults.push(result)
-    })
+    }
 
     barResultsRef.current = allBarResults
 
@@ -569,35 +628,29 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
         if (fill !== "none") el.setAttribute("fill", color)
       })
 
-      // Fix tuplet bracket spacing - VexFlow adds too much left padding
+      // Fix tuplet bracket spacing
       svg.querySelectorAll(".vf-tuplet").forEach((tupletGroup) => {
         const rects = tupletGroup.querySelectorAll("rect")
-        // VexFlow draws: left horiz, right horiz, left vert, right vert
-        // We need to shift the left side elements to the right
         const shiftAmount = 8
         const centerShift = shiftAmount / 2
         if (rects.length >= 3) {
-          // Left horizontal line - shift x, reduce width by half (gap moves with center)
           const leftHoriz = rects[0]
           const x = parseFloat(leftHoriz.getAttribute("x") || "0")
           const width = parseFloat(leftHoriz.getAttribute("width") || "0")
           leftHoriz.setAttribute("x", String(x + shiftAmount))
           leftHoriz.setAttribute("width", String(Math.max(0, width - centerShift)))
 
-          // Right horizontal line - shift x to move the gap, reduce width to match
           const rightHoriz = rects[1]
           const rightX = parseFloat(rightHoriz.getAttribute("x") || "0")
           const rightWidth = parseFloat(rightHoriz.getAttribute("width") || "0")
           rightHoriz.setAttribute("x", String(rightX + centerShift))
           rightHoriz.setAttribute("width", String(Math.max(0, rightWidth - centerShift)))
 
-          // Left vertical line - shift x
           const leftVert = rects[2]
           const vertX = parseFloat(leftVert.getAttribute("x") || "0")
           leftVert.setAttribute("x", String(vertX + shiftAmount))
         }
 
-        // Shift the number to re-center it (half the bracket shift)
         const text = tupletGroup.querySelector("text")
         if (text) {
           const textX = parseFloat(text.getAttribute("x") || "0")
@@ -606,93 +659,37 @@ export function NotationRenderer({ bars, currentBar, currentBeat, beatFraction, 
       })
     }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bars, dimensions])
+    // Reset highlight state when bars change
+    lastHighlightTimeRef.current = -1
 
+  }, [bars, computeLayout])
 
-
-
-
-
-
-
-  // Apply gold highlighting based on current time
+  // Start/stop animation loop
   useEffect(() => {
-    const baseColor = "#e8dcc8"
-    const goldColor = "#f59e0b"
-
-    const applyColor = (elem: Element | null, color: string) => {
-      if (!elem) return
-      elem.querySelectorAll("*").forEach((child) => {
-        const svg = child as SVGElement
-        if (svg.getAttribute("fill") && svg.getAttribute("fill") !== "none") {
-          svg.setAttribute("fill", color)
-          svg.style.fill = color
-        }
-        if (svg.getAttribute("stroke") && svg.getAttribute("stroke") !== "none") {
-          svg.setAttribute("stroke", color)
-          svg.style.stroke = color
-        }
-      })
-    }
-
-    for (const { noteToOnset, beamsWithNotes } of barResultsRef.current) {
-      noteToOnset.forEach((onset, note) => {
-        const el = note.getSVGElement()
-        if (el) applyColor(el, currentTime >= onset.timeSec ? goldColor : baseColor)
-      })
-
-      for (const { beam, notes } of beamsWithNotes) {
-        const allHit = notes.every((n) => {
-          const onset = noteToOnset.get(n)
-          return onset && currentTime >= onset.timeSec
-        })
-        const el = beam.getSVGElement()
-        if (el) applyColor(el, allHit ? goldColor : baseColor)
+    runAnimationLoop()
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [currentTime])
-
-  // Calculate scroll position based on current position within the bar
-  // Find which bar in our bars array corresponds to currentBar
-  const currentBarArrayIndex = bars.findIndex(b => b.barIndex === currentBar)
-
-  // The key insight: we need to scroll based on progress through the VISIBLE bars,
-  // not absolute bar indices. When the window shifts, the first visible bar becomes
-  // the reference point (position 0 in our local coordinate system).
-  let scrollPosition = 0
-  if (currentBarArrayIndex >= 0) {
-    // Position at start of current bar (local coordinates)
-    scrollPosition = barPositions[currentBarArrayIndex]
-
-    // Add fractional progress through the current bar
-    const currentBarWidth = barWidths[currentBarArrayIndex]
-    const beatProgress = (currentBeat + beatFraction) / 4
-    scrollPosition += currentBarWidth * beatProgress
-
-    // Offset to keep playhead at ~15% of visible area
-    scrollPosition -= dimensions.width * 0.15
-  } else if (bars.length > 0 && currentBar > bars[bars.length - 1].barIndex) {
-    // Past the last bar - keep scrolling
-    scrollPosition = totalWidth - dimensions.width * 0.15
-  }
+  }, [runAnimationLoop])
 
   return (
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden"
-      style={{ height: dimensions.height }}
+      style={{ height: 150 }}
     >
       <div
         ref={svgRef}
         className="absolute top-0 left-0"
         style={{
-          transform: `translateX(${-scrollPosition}px)`,
-          transition: "none",
+          willChange: "transform",
+          transform: "translateX(0px)",
         }}
       />
 
-      {/* Fade edges for cleaner scroll appearance */}
+      {/* Fade edges */}
       <div
         className="absolute inset-y-0 left-0 w-6 pointer-events-none"
         style={{

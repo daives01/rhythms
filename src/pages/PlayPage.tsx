@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom"
 import type { GameScore, RuntimeBar, HitResult, Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { rhythmBuffer } from "@/engines/RhythmEngine"
 import { judgeEngine } from "@/engines/JudgeEngine"
-import { NotationRenderer } from "@/components/NotationRenderer"
+import { NotationRenderer, type PositionData } from "@/components/NotationRenderer"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
@@ -58,12 +58,22 @@ export function PlayPage() {
   const challengeDataRef = useRef(challengeParam ? decodeChallenge(challengeParam) : null)
   const challengeData = challengeDataRef.current
 
-  // If no valid challenge, redirect to home
+  // Check if we arrived via proper navigation (with audio unlocked) or via reload/direct URL
+  const location = useLocation()
+  const hasAudioUnlock = !!(location.state as { audioUnlocked?: boolean } | null)?.audioUnlocked
+
+  // Redirect to challenge landing if no valid challenge OR if page was reloaded (no audio unlock)
+  // This ensures audio autoplay policies are satisfied since user must interact before playing
   useEffect(() => {
-    if (!challengeData) {
-      navigate("/")
+    if (!challengeData || !hasAudioUnlock) {
+      if (challengeParam) {
+        // Preserve challenge in URL so user lands on challenge landing page
+        navigate(`/?challenge=${challengeParam}`, { replace: true })
+      } else {
+        navigate("/", { replace: true })
+      }
     }
-  }, [challengeData, navigate])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [phase, setPhase] = useState<"countIn" | "running">("countIn")
   const [bars, setBars] = useState<RuntimeBar[]>([])
@@ -74,10 +84,6 @@ export function PlayPage() {
     timeSurvived: 0,
   })
 
-  const [currentBar, setCurrentBar] = useState(0)
-  const [currentBeat, setCurrentBeat] = useState(0)
-  const [beatFraction, setBeatFraction] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
   const [countInBeat, setCountInBeat] = useState<number | null>(null)
   const [lastResult, setLastResult] = useState<HitResult | null>(null)
 
@@ -98,6 +104,18 @@ export function PlayPage() {
   useEffect(() => {
     scoreRef.current = score
   }, [score])
+
+  // Provide position data to NotationRenderer without triggering React re-renders
+  const getPosition = useCallback((): PositionData | null => {
+    const pos = transportEngine.getCurrentPosition()
+    if (!pos) return null
+    return {
+      bar: pos.bar,
+      beat: pos.beat,
+      beatFraction: pos.beatFraction,
+      currentTime: transportEngine.now(),
+    }
+  }, [])
 
   const showFeedback = (result: HitResult) => {
     if (feedbackTimeout.current) clearTimeout(feedbackTimeout.current)
@@ -191,22 +209,26 @@ export function PlayPage() {
     }
   }, [phase, groupMode, navigate, challengeParam])
 
-  // Position updates
+  // Position updates - only for score tracking and bar advancement (not for animation)
   useEffect(() => {
+    let lastBar = -1
+    let lastBeat = -1
+
     const updatePosition = () => {
       const pos = transportEngine.getCurrentPosition()
       if (pos) {
-        setCurrentBar(pos.bar)
-        setCurrentBeat(pos.beat)
-        setBeatFraction(pos.beatFraction)
-        setCurrentTime(transportEngine.now())
+        // Only update score when beat changes (not every frame)
+        if (pos.bar !== lastBar || pos.beat !== lastBeat) {
+          lastBar = pos.bar
+          lastBeat = pos.beat
 
-        setScore((s) => ({
-          ...s,
-          barsSurvived: pos.bar,
-          beatsSurvived: pos.bar * 4 + pos.beat,
-          timeSurvived: (pos.bar * 4 + pos.beat + pos.beatFraction) * (60 / gameBpm),
-        }))
+          setScore((s) => ({
+            ...s,
+            barsSurvived: pos.bar,
+            beatsSurvived: pos.bar * 4 + pos.beat,
+            timeSurvived: (pos.bar * 4 + pos.beat) * (60 / gameBpm),
+          }))
+        }
 
         if (rhythmBuffer.advanceIfNeeded(pos.bar)) {
           const newBars = [...rhythmBuffer.getBars()]
@@ -356,10 +378,7 @@ export function PlayPage() {
             <div className="p-4 landscape:p-3">
               <NotationRenderer
                 bars={bars}
-                currentBar={currentBar}
-                currentBeat={currentBeat}
-                beatFraction={beatFraction}
-                currentTime={currentTime}
+                getPosition={getPosition}
               />
             </div>
           </PanelContainer>

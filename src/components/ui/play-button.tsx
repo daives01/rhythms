@@ -1,7 +1,7 @@
 import { GameButton } from "@/components/ui/game-button"
 
 interface PlayButtonProps {
-  onClick: () => void
+  onClick?: () => void
   className?: string
 }
 
