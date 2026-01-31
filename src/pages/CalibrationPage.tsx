@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { CalibrationScreen } from "@/components/CalibrationScreen"
 
@@ -64,17 +64,16 @@ function addToHistory(offset: number, history: CalibrationEntry[]): CalibrationE
 export function CalibrationPage() {
   const navigate = useNavigate()
   const [currentOffset, setCurrentOffset] = useState(loadLatencyOffset)
-  const [calibrationHistory, setCalibrationHistory] = useState<CalibrationEntry[]>(loadCalibrationHistory)
-
-  useEffect(() => {
+  const [calibrationHistory, setCalibrationHistory] = useState<CalibrationEntry[]>(() => {
     const existingHistory = loadCalibrationHistory()
     const currentOff = loadLatencyOffset()
     if (existingHistory.length === 0 && currentOff !== DEFAULT_LATENCY_OFFSET) {
       const initialHistory = [{ offset: currentOff, timestamp: Date.now() }]
-      setCalibrationHistory(initialHistory)
       saveCalibrationHistory(initialHistory)
+      return initialHistory
     }
-  }, [])
+    return existingHistory
+  })
 
   const handleComplete = (offset: number) => {
     saveLatencyOffset(offset)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { Gauge, Signal, Volume2, RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
@@ -11,6 +11,9 @@ import { TipModal } from "@/components/ui/tip-modal"
 
 import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
+import { useMutation } from "convex/react"
+import { api } from "../../convex/_generated/api"
+import { authClient } from "@/lib/auth-client"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
@@ -141,6 +144,10 @@ export function GameOverPage() {
   const score = state?.score ?? { barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 }
   const gameOverReason = state?.gameOverReason ?? "miss"
 
+  const authSession = authClient.useSession()
+  const addPlayHistory = useMutation(api.playHistory.add)
+  const hasRecordedPlay = useRef(false)
+
   // Surface tip warning for mobile users who fail quickly
   const [showSurfaceTip, setShowSurfaceTip] = useState(() => {
     if (typeof window === "undefined") return false
@@ -175,6 +182,20 @@ export function GameOverPage() {
     const runDifficulty = getDifficultyFromValue(challengeData?.difficulty ?? initialSettings.difficultyValue)
     return calculateScore(score.totalHits, runBpm, runDifficulty, score.timeSurvived)
   })
+
+  useEffect(() => {
+    if (!challengeData || !authSession.data || hasRecordedPlay.current) return
+
+    hasRecordedPlay.current = true
+    addPlayHistory({
+      seed: challengeData.seed,
+      tempo: challengeData.bpm,
+      difficulty: getDifficultyFromValue(challengeData.difficulty),
+      score: finalScore,
+    }).catch(() => {
+      hasRecordedPlay.current = false
+    })
+  }, [addPlayHistory, authSession, challengeData, finalScore])
 
   useEffect(() => {
     saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })

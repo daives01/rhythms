@@ -3,6 +3,9 @@ import { Game } from "./components/Game"
 import { PlayPage } from "./pages/PlayPage"
 import { CalibrationPage } from "./pages/CalibrationPage"
 import { GameOverPage } from "./pages/GameOverPage"
+import { AuthEntry } from "./components/auth/AuthEntry"
+import { AccountPage } from "./pages/AccountPage"
+import { ResetPasswordPage } from "./pages/ResetPasswordPage"
 
 function SupportLink() {
   const location = useLocation()
@@ -23,12 +26,15 @@ function SupportLink() {
 function App() {
   return (
     <BrowserRouter>
+      <AuthEntry />
       <SupportLink />
       <Routes>
         <Route path="/" element={<Game />} />
         <Route path="/play" element={<PlayPage />} />
         <Route path="/calibration" element={<CalibrationPage />} />
         <Route path="/game-over" element={<GameOverPage />} />
+        <Route path="/account" element={<AccountPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Routes>
     </BrowserRouter>
   )

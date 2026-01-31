@@ -154,13 +154,16 @@ export function CalibrationScreen({
       }
 
       if (newOffset !== null) {
-        onComplete(newOffset)
-        setJustCalibrated(newOffset)
+        requestAnimationFrame(() => {
+          onComplete(newOffset)
+          setJustCalibrated(newOffset)
+          setPhase("intro")
+        })
+      } else {
+        requestAnimationFrame(() => {
+          setPhase("intro")
+        })
       }
-
-      requestAnimationFrame(() => {
-        setPhase("intro")
-      })
     }
   }, [tapCount, offsets, phase, onComplete])
 

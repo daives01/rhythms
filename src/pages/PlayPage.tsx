@@ -55,8 +55,7 @@ export function PlayPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const challengeParam = searchParams.get("challenge")
-  const challengeDataRef = useRef(challengeParam ? decodeChallenge(challengeParam) : null)
-  const challengeData = challengeDataRef.current
+  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
 
   // Check if we arrived via proper navigation (with audio unlocked) or via reload/direct URL
   const location = useLocation()
@@ -73,7 +72,7 @@ export function PlayPage() {
         navigate("/", { replace: true })
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [challengeData, challengeParam, hasAudioUnlock, navigate])
 
   const [phase, setPhase] = useState<"countIn" | "running">("countIn")
   const [bars, setBars] = useState<RuntimeBar[]>([])

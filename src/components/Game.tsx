@@ -93,13 +93,13 @@ export function Game() {
   const challengeParam = searchParams.get("challenge")
   const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
 
-  const [bpm, setBpm] = useState(() => loadSettings().bpm)
-  const [difficultyValue, setDifficultyValue] = useState(() => loadSettings().difficultyValue)
+  const [bpm, setBpm] = useState(() => challengeData?.bpm ?? loadSettings().bpm)
+  const [difficultyValue, setDifficultyValue] = useState(() => challengeData?.difficulty ?? loadSettings().difficultyValue)
   const difficulty = getDifficultyFromValue(difficultyValue)
 
   const [isCalibrated] = useState(hasCalibrated)
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
-  const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
+  const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
 
   // iOS ringer warning
@@ -160,15 +160,6 @@ export function Game() {
       setTimeout(() => setIsAnimatingSliders(false), 300)
     }
   }
-
-  // Initialize settings to challenge values on mount
-  useEffect(() => {
-    if (challengeData && challengeMode) {
-      setBpm(challengeData.bpm)
-      setDifficultyValue(challengeData.difficulty)
-      setIncludeTuplets(challengeData.tuplets)
-    }
-  }, [])
 
   return (
     <div
