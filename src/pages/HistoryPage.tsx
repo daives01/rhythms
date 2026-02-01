@@ -1,0 +1,184 @@
+import { useNavigate } from "react-router-dom"
+import { useQuery } from "convex/react"
+import { ArrowLeft } from "lucide-react"
+import { PanelContainer } from "@/components/ui/panel-container"
+import { Button } from "@/components/ui/button"
+import { AuthLoading } from "@/components/auth/AuthLoading"
+import { authClient } from "@/lib/auth-client"
+import { encodeChallenge, type ChallengeData } from "@/lib/random"
+import { api } from "../../convex/_generated/api"
+
+const SETTINGS_KEY = "rhythm-settings"
+
+function loadTupletsSetting(): boolean {
+  try {
+    const stored = localStorage.getItem(SETTINGS_KEY)
+    if (!stored) return false
+    const parsed = JSON.parse(stored)
+    return parsed.includeTuplets ?? false
+  } catch {
+    return false
+  }
+}
+
+function formatShortDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  })
+}
+
+function formatDifficultyLabel(value?: string | null): string {
+  if (!value) return "Any"
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+const difficultyValueMap: Record<string, number> = {
+  easy: 0,
+  medium: 0.5,
+  hard: 1,
+}
+
+export function HistoryPage() {
+  const navigate = useNavigate()
+  const session = authClient.useSession()
+  const history = useQuery(api.playHistory.listForUser, session.data ? { limit: 50 } : "skip")
+  const includeTuplets = loadTupletsSetting()
+
+  if (session.isPending) {
+    return <AuthLoading />
+  }
+
+  if (!session.data) {
+    return (
+      <div
+        className="min-h-dvh flex flex-col select-none"
+        style={{
+          touchAction: "manipulation",
+          WebkitTouchCallout: "none",
+          WebkitUserSelect: "none",
+        }}
+      >
+        <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
+          <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+            {/* Left column - Title */}
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+              <h1
+                className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground uppercase"
+                style={{ letterSpacing: "0.1em" }}
+              >
+                History
+              </h1>
+              <p className="text-xs text-muted-foreground mt-2 landscape:text-left text-center">
+                Sign in to view your play history.
+              </p>
+            </div>
+
+            {/* Right column - Content */}
+            <div className="w-full landscape:w-[480px] landscape:shrink-0">
+              <PanelContainer className="w-full">
+                <div className="p-6 flex flex-col gap-4">
+                  <Button
+                    onClick={() => navigate("/account")}
+                    className="w-full"
+                  >
+                    Sign in
+                  </Button>
+                  <button
+                    className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
+                    onClick={() => navigate("/")}
+                  >
+                    Back to play
+                  </button>
+                </div>
+              </PanelContainer>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="min-h-dvh flex flex-col select-none"
+      style={{
+        touchAction: "manipulation",
+        WebkitTouchCallout: "none",
+        WebkitUserSelect: "none",
+      }}
+    >
+      <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
+        <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+          {/* Left column - Title */}
+          <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+            <h1
+              className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground uppercase"
+              style={{ letterSpacing: "0.1em" }}
+            >
+              History
+            </h1>
+            <p className="text-xs text-muted-foreground mt-2 landscape:text-left text-center">
+              Your recent practice sessions
+            </p>
+          </div>
+
+          {/* Right column - Content */}
+          <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
+            <div className="flex items-center justify-end">
+              <Button variant="ghost" onClick={() => navigate("/")}
+                className="text-[10px] uppercase tracking-wider"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Button>
+            </div>
+
+            <PanelContainer enableLines>
+              <div className="p-4 flex flex-col gap-4">
+                {history?.length ? (
+                  <div className="grid gap-3">
+                    {history.map((entry) => {
+                      const challengeData: ChallengeData = {
+                        seed: entry.seed,
+                        bpm: entry.tempo,
+                        difficulty: difficultyValueMap[entry.difficulty] ?? 0.5,
+                        tuplets: includeTuplets,
+                      }
+                      const encoded = encodeChallenge(challengeData)
+                      return (
+                        <div
+                          key={entry._id}
+                          className="border border-border p-3 flex items-center justify-between text-[10px] uppercase tracking-wider"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <span className="text-foreground">{entry.score} pts</span>
+                            <span className="text-muted-foreground/60">
+                              {formatShortDate(entry.createdAt)} · {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })}
+                            className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          >
+                            Replay
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                    No history yet. Start playing to see your sessions here.
+                  </p>
+                )}
+              </div>
+            </PanelContainer>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}

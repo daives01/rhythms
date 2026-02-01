@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Gauge, Signal, Volume2 } from "lucide-react"
+import { Gauge, Signal, Volume2, LogIn, Users } from "lucide-react"
+import { useMutation, useQuery } from "convex/react"
 import { HorizontalSwitch } from "@/components/ui/horizontal-switch"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
@@ -10,7 +11,13 @@ import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
 import { PanelContainer } from "@/components/ui/panel-container"
+import { Button } from "@/components/ui/button"
+import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { authClient } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
 import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
@@ -21,6 +28,24 @@ interface StoredSettings {
   playAlongVolume: number
   groupMode: boolean
   includeTuplets: boolean
+}
+
+interface GroupListEntry {
+  group: {
+    _id: Id<"groups">
+    name: string
+    createdAt: number
+    createdBy: Id<"users">
+  }
+  membership: {
+    _id: Id<"groupMembers">
+    role: "admin" | "member"
+  }
+}
+
+interface ChallengeEntry {
+  _id: Id<"challenges">
+  groupId: Id<"groups">
 }
 
 const DEFAULT_SETTINGS: StoredSettings = {
@@ -88,6 +113,10 @@ const calculateBPMColor = (bpm: number): string => {
 export function Game() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const session = authClient.useSession()
+  const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
+  const challenges = useQuery(api.challenges.listForUser, session.data ? {} : "skip") as ChallengeEntry[] | undefined
+  const redeemInvite = useMutation(api.groups.redeemInvite)
 
   // Check for challenge in URL (shared challenge link)
   const challengeParam = searchParams.get("challenge")
@@ -101,6 +130,10 @@ export function Game() {
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
   const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
+  const [inviteCode, setInviteCode] = useState("")
+  const [isRedeeming, setIsRedeeming] = useState(false)
+  const [groupError, setGroupError] = useState<string | null>(null)
+  const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false)
 
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
@@ -142,8 +175,9 @@ export function Game() {
     navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
   }
 
+  const isGroupChallenge = Boolean(challengeData?.groupId && challengeData?.challengeId)
   // Show challenge landing page if there's a valid challenge in URL
-  const showChallengeLanding = !!challengeData
+  const showChallengeLanding = !!challengeData && !isGroupChallenge
 
   // Challenge mode toggle - when on, settings are locked to challenge values
   const [challengeMode, setChallengeMode] = useState(true)
@@ -159,6 +193,25 @@ export function Game() {
       setIncludeTuplets(challengeData.tuplets)
       setTimeout(() => setIsAnimatingSliders(false), 300)
     }
+  }
+
+  const handleRedeemInvite = async () => {
+    if (!inviteCode.trim()) return
+    setGroupError(null)
+    setIsRedeeming(true)
+    try {
+      const result = await redeemInvite({ code: inviteCode.trim().toUpperCase() })
+      setInviteCode("")
+      navigate(`/groups/${result.membership.groupId}`)
+    } catch (error) {
+      setGroupError(error instanceof Error ? error.message : "Failed to join group.")
+    } finally {
+      setIsRedeeming(false)
+    }
+  }
+
+  const getChallengeCount = (groupId: Id<"groups">): number => {
+    return challenges?.filter((c) => c.groupId === groupId).length ?? 0
   }
 
   return (
@@ -277,17 +330,30 @@ export function Game() {
         {!showChallengeLanding && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
             {/* Left column: Title */}
-            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center gap-3">
               <h1
                 className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
                 style={{ letterSpacing: "0.1em" }}
               >
                 rhythms
               </h1>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsGroupsModalOpen(true)}
+                className={cn(
+                  "text-[10px] uppercase tracking-wider",
+                  !session.data && "opacity-0 pointer-events-none"
+                )}
+              >
+                <Users className="w-3 h-3 mr-1" />
+                My groups
+              </Button>
             </div>
 
             {/* Right column: Mixer panel */}
-            <PanelContainer className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up">
+            <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4 animate-fade-in-up">
+              <PanelContainer>
               {/* Fader controls */}
               <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
                 <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
@@ -360,9 +426,100 @@ export function Game() {
                   <PlayButton onClick={() => startGame()} />
                 </div>
               </div>
-            </PanelContainer>
+              </PanelContainer>
+
+            </div>
 
           </div>
+        )}
+
+        {session.data && (
+          <ResponsiveModal
+            open={isGroupsModalOpen}
+            onOpenChange={setIsGroupsModalOpen}
+            title="My groups"
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Your groups ({groups?.length ?? 0})
+                </span>
+              </div>
+
+              {groupError && (
+                <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
+                  {groupError}
+                </div>
+              )}
+
+              {groups?.length ? (
+                <div className="grid gap-2">
+                  {groups.map((entry) => (
+                    <button
+                      key={entry.group._id}
+                      type="button"
+                      onClick={() => {
+                        setIsGroupsModalOpen(false)
+                        navigate(`/groups/${entry.group._id}`)
+                      }}
+                      className={cn(
+                        "border border-border p-3 text-left",
+                        "hover:border-foreground/40 transition-colors"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground">{entry.group.name}</span>
+                        <span className={cn(
+                          "text-[9px] uppercase tracking-wider px-2 py-0.5 border",
+                          entry.membership.role === "admin"
+                            ? "border-foreground/40 text-foreground"
+                            : "border-border text-muted-foreground"
+                        )}>
+                          {entry.membership.role}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                        <span>{getChallengeCount(entry.group._id)} challenges</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  No groups yet. Join with an invite code.
+                </p>
+              )}
+
+              <div className="border-t border-border" />
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <LogIn className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Join with invite</span>
+                </div>
+                <input
+                  aria-label="Invite code"
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="ENTER CODE"
+                  autoCapitalize="characters"
+                  className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground text-center"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRedeemInvite}
+                  disabled={isRedeeming || !inviteCode.trim()}
+                  className="text-[10px] uppercase tracking-wider"
+                >
+                  <LogIn className="w-3 h-3 mr-1" />
+                  Join group
+                </Button>
+              </div>
+            </div>
+          </ResponsiveModal>
         )}
 
         {/* iOS Ringer Warning Modal */}

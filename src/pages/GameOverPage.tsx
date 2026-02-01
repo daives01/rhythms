@@ -11,8 +11,10 @@ import { TipModal } from "@/components/ui/tip-modal"
 
 import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
+import { calculateScore } from "@/lib/score"
 import { useMutation } from "convex/react"
 import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
 import { authClient } from "@/lib/auth-client"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
@@ -86,25 +88,6 @@ const calculateBPMColor = (bpm: number): string => {
     const b = Math.round(36 + p * (113 - 36))
     return `rgb(${r}, ${g}, ${b})`
   }
-}
-
-const calculateScore = (
-  hits: number,
-  bpm: number,
-  difficulty: Difficulty,
-  timeSurvived: number
-): number => {
-  const difficultyMultipliers: Record<Difficulty, number> = {
-    easy: 1,
-    medium: 1.5,
-    hard: 2.5,
-  }
-
-  const difficultyBonus = difficultyMultipliers[difficulty]
-  const timeBonus = Math.max(1, timeSurvived / 10)
-  const bpmBonus = bpm / 120
-
-  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
 }
 
 function getShareUrl(challenge: string): string {
@@ -192,6 +175,8 @@ export function GameOverPage() {
       tempo: challengeData.bpm,
       difficulty: getDifficultyFromValue(challengeData.difficulty),
       score: finalScore,
+      groupId: challengeData.groupId ? (challengeData.groupId as Id<"groups">) : undefined,
+      challengeId: challengeData.challengeId ? (challengeData.challengeId as Id<"challenges">) : undefined,
     }).catch(() => {
       hasRecordedPlay.current = false
     })

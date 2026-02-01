@@ -5,7 +5,10 @@ import { CalibrationPage } from "./pages/CalibrationPage"
 import { GameOverPage } from "./pages/GameOverPage"
 import { AuthEntry } from "./components/auth/AuthEntry"
 import { AccountPage } from "./pages/AccountPage"
+import { JoinPage } from "./pages/JoinPage"
 import { ResetPasswordPage } from "./pages/ResetPasswordPage"
+import { HistoryPage } from "./pages/HistoryPage"
+import { GroupDetailPage } from "./pages/GroupDetailPage"
 
 function SupportLink() {
   const location = useLocation()
@@ -34,6 +37,9 @@ function App() {
         <Route path="/calibration" element={<CalibrationPage />} />
         <Route path="/game-over" element={<GameOverPage />} />
         <Route path="/account" element={<AccountPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/groups/:id" element={<GroupDetailPage />} />
+        <Route path="/join" element={<JoinPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Routes>
     </BrowserRouter>

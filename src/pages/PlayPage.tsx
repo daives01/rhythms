@@ -9,6 +9,11 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
 import { decodeChallenge } from "@/lib/random"
+import { calculateScore } from "@/lib/score"
+import { useMutation } from "convex/react"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
+import { authClient } from "@/lib/auth-client"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const SETTINGS_KEY = "rhythm-settings"
@@ -57,6 +62,9 @@ export function PlayPage() {
   const challengeParam = searchParams.get("challenge")
   const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
 
+  const authSession = authClient.useSession()
+  const addPlayHistory = useMutation(api.playHistory.add)
+
   // Check if we arrived via proper navigation (with audio unlocked) or via reload/direct URL
   const location = useLocation()
   const hasAudioUnlock = !!(location.state as { audioUnlocked?: boolean } | null)?.audioUnlocked
@@ -65,6 +73,10 @@ export function PlayPage() {
   // This ensures audio autoplay policies are satisfied since user must interact before playing
   useEffect(() => {
     if (!challengeData || !hasAudioUnlock) {
+      if (challengeData?.groupId && challengeData?.challengeId) {
+        navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, { replace: true })
+        return
+      }
       if (challengeParam) {
         // Preserve challenge in URL so user lands on challenge landing page
         navigate(`/?challenge=${challengeParam}`, { replace: true })
@@ -89,6 +101,7 @@ export function PlayPage() {
   const feedbackTimeout = useRef<number | null>(null)
   const animationFrame = useRef<number | null>(null)
   const hasStarted = useRef(false)
+  const hasRecordedPlay = useRef(false)
   const scoreRef = useRef<GameScore>(score)
 
   const latencyOffset = loadLatencyOffset()
@@ -191,6 +204,36 @@ export function PlayPage() {
       transportEngine.stop()
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
 
+      if (challengeData?.groupId && challengeData?.challengeId) {
+        const finalScore = calculateScore(
+          scoreRef.current.totalHits,
+          gameBpm,
+          gameDifficulty,
+          scoreRef.current.timeSurvived
+        )
+        if (authSession.data && !hasRecordedPlay.current) {
+          hasRecordedPlay.current = true
+          addPlayHistory({
+            seed: challengeData.seed,
+            tempo: gameBpm,
+            difficulty: gameDifficulty,
+            score: finalScore,
+            groupId: challengeData.groupId as Id<"groups">,
+            challengeId: challengeData.challengeId as Id<"challenges">,
+          }).catch(() => {
+            hasRecordedPlay.current = false
+          })
+        }
+        navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, {
+          state: {
+            score: scoreRef.current,
+            finalScore,
+            gameOverReason: reason,
+          },
+        })
+        return
+      }
+
       navigate(`/game-over?challenge=${challengeParam}`, {
         state: {
           score: scoreRef.current,
@@ -204,7 +247,17 @@ export function PlayPage() {
       unsubJudge()
       unsubGameOver()
     }
-  }, [phase, groupMode, navigate, challengeParam])
+  }, [
+    phase,
+    groupMode,
+    navigate,
+    challengeParam,
+    challengeData,
+    gameBpm,
+    gameDifficulty,
+    authSession,
+    addPlayHistory,
+  ])
 
   // Position updates - only for score tracking and bar advancement (not for animation)
   useEffect(() => {

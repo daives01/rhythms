@@ -6,11 +6,12 @@ interface PanelContainerProps {
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
+  enableLines?: boolean
 }
 
 const GRID_OFFSET = 8
 
-export function PanelContainer({ children, className, style }: PanelContainerProps) {
+export function PanelContainer({ children, className, style, enableLines = true }: PanelContainerProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null)
 
@@ -41,7 +42,7 @@ export function PanelContainer({ children, className, style }: PanelContainerPro
 
   return (
     <div ref={ref} className={cn("relative", className)} style={style}>
-      {bounds && createPortal(
+      {enableLines && bounds && createPortal(
         <>
           <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.top }} />
           <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.bottom }} />

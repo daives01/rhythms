@@ -40,7 +40,20 @@ export const getOrCreateUser = mutation({
       .query("users")
       .withIndex("by_authUserId", (q) => q.eq("authUserId", authUser._id))
       .unique()
-    if (existing) return existing
+    if (existing) {
+      const updates: Partial<UserDoc> = {}
+      if (existing.email !== authUser.email) updates.email = authUser.email ?? undefined
+      if (existing.name !== authUser.name) updates.name = authUser.name ?? undefined
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(existing._id, updates)
+        const updated = await ctx.db.get(existing._id)
+        if (!updated) {
+          throw new ConvexError({ code: "NOT_FOUND", message: "User update failed." })
+        }
+        return updated
+      }
+      return existing
+    }
 
     const now = Date.now()
     const userId = await ctx.db.insert("users", {

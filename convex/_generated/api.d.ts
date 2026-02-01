@@ -8,8 +8,8 @@
  * @module
  */
 
-import type * as assignments from "../assignments.js";
 import type * as auth from "../auth.js";
+import type * as challenges from "../challenges.js";
 import type * as groupMembers from "../groupMembers.js";
 import type * as groups from "../groups.js";
 import type * as http from "../http.js";
@@ -24,8 +24,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  assignments: typeof assignments;
   auth: typeof auth;
+  challenges: typeof challenges;
   groupMembers: typeof groupMembers;
   groups: typeof groups;
   http: typeof http;

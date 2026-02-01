@@ -21,6 +21,10 @@ export default defineSchema({
     userId: v.id("users"),
     role: v.union(v.literal("admin"), v.literal("member")),
     joinedAt: v.number(),
+    userName: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
+    userPremium: v.optional(v.boolean()),
+    userAuthUserId: v.optional(v.string()),
   })
     .index("by_groupId_userId", ["groupId", "userId"])
     .index("by_groupId", ["groupId"])
@@ -37,7 +41,7 @@ export default defineSchema({
   })
     .index("by_code", ["code"])
     .index("by_groupId", ["groupId"]),
-  assignments: defineTable({
+  challenges: defineTable({
     groupId: v.id("groups"),
     createdBy: v.id("users"),
     title: v.string(),
@@ -54,14 +58,16 @@ export default defineSchema({
   playHistory: defineTable({
     userId: v.id("users"),
     groupId: v.optional(v.id("groups")),
-    assignmentId: v.optional(v.id("assignments")),
+    challengeId: v.optional(v.id("challenges")),
     seed: v.string(),
     tempo: v.number(),
     difficulty: v.string(),
     score: v.number(),
     createdAt: v.number(),
+    userName: v.optional(v.string()),
+    userEmail: v.optional(v.string()),
   })
     .index("by_userId_createdAt", ["userId", "createdAt"])
     .index("by_groupId_createdAt", ["groupId", "createdAt"])
-    .index("by_assignmentId_createdAt", ["assignmentId", "createdAt"]),
+    .index("by_challengeId_createdAt", ["challengeId", "createdAt"]),
 })

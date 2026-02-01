@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { ConvexError, v } from "convex/values"
-import { requireCurrentUser, requireGroupAdmin } from "./groupMembers"
+import { requireCurrentUser, requireGroupAdmin, requireGroupMember } from "./groupMembers"
 
 const groupValidator = v.object({
   _id: v.id("groups"),
@@ -17,6 +17,10 @@ const groupMemberValidator = v.object({
   userId: v.id("users"),
   role: v.union(v.literal("admin"), v.literal("member")),
   joinedAt: v.number(),
+  userName: v.optional(v.string()),
+  userEmail: v.optional(v.string()),
+  userPremium: v.optional(v.boolean()),
+  userAuthUserId: v.optional(v.string()),
 })
 
 const groupInviteValidator = v.object({
@@ -30,6 +34,21 @@ const groupInviteValidator = v.object({
   maxUses: v.optional(v.number()),
   useCount: v.number(),
   revokedAt: v.optional(v.number()),
+})
+
+const challengeValidator = v.object({
+  _id: v.id("challenges"),
+  _creationTime: v.number(),
+  groupId: v.id("groups"),
+  createdBy: v.id("users"),
+  title: v.string(),
+  description: v.optional(v.string()),
+  dueAt: v.number(),
+  tempo: v.optional(v.number()),
+  difficulty: v.optional(v.string()),
+  seed: v.optional(v.string()),
+  leaderboard: v.boolean(),
+  createdAt: v.number(),
 })
 
 const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -64,6 +83,10 @@ export const create = mutation({
       userId: user._id,
       role: "admin",
       joinedAt: now,
+      userName: user.name,
+      userEmail: user.email,
+      userPremium: user.premium,
+      userAuthUserId: user.authUserId,
     })
 
     const group = await ctx.db.get(groupId)
@@ -154,6 +177,10 @@ export const redeemInvite = mutation({
       userId: user._id,
       role: "member",
       joinedAt: Date.now(),
+      userName: user.name,
+      userEmail: user.email,
+      userPremium: user.premium,
+      userAuthUserId: user.authUserId,
     })
     const membership = await ctx.db.get(membershipId)
     if (!membership) {
@@ -193,7 +220,8 @@ export const listInvites = query({
     return await ctx.db
       .query("groupInvites")
       .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
-      .collect()
+      .order("desc")
+      .take(200)
   },
 })
 
@@ -237,23 +265,24 @@ export const listMembers = query({
     })
   ),
   handler: async (ctx, args) => {
-    await requireGroupAdmin(ctx, args.groupId)
+    await requireGroupMember(ctx, args.groupId)
     const memberships = await ctx.db
       .query("groupMembers")
       .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
       .collect()
 
-    const entries = await Promise.all(
-      memberships.map(async (membership) => {
-        const user = await ctx.db.get(membership.userId)
-        return user ? { membership, user } : null
-      })
-    )
-
-    return entries.filter(
-      (entry): entry is { membership: typeof memberships[number]; user: NonNullable<(typeof entries)[number]>["user"] } =>
-        entry !== null
-    )
+    return memberships.map((membership) => ({
+      membership,
+      user: {
+        _id: membership.userId,
+        _creationTime: membership._creationTime,
+        authUserId: membership.userAuthUserId ?? "",
+        email: membership.userEmail,
+        name: membership.userName,
+        premium: membership.userPremium,
+        createdAt: membership.joinedAt,
+      },
+    }))
   },
 })
 
@@ -272,11 +301,20 @@ export const addMember = mutation({
       .unique()
     if (existing) return existing
 
+    const user = await ctx.db.get(args.userId)
+    if (!user) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "User not found." })
+    }
+
     const membershipId = await ctx.db.insert("groupMembers", {
       groupId: args.groupId,
       userId: args.userId,
       role: args.role ?? "member",
       joinedAt: Date.now(),
+      userName: user.name,
+      userEmail: user.email,
+      userPremium: user.premium,
+      userAuthUserId: user.authUserId,
     })
     const membership = await ctx.db.get(membershipId)
     if (!membership) {
@@ -302,15 +340,95 @@ export const listForUser = query({
       .collect()
 
     const groups = await Promise.all(
-      memberships.map(async (membership) => {
-        const group = await ctx.db.get(membership.groupId)
-        return group ? { group, membership } : null
-      })
+      memberships.map((membership) => ctx.db.get(membership.groupId))
     )
 
-    return groups.filter(
-      (entry): entry is { group: NonNullable<(typeof groups)[number]>["group"]; membership: (typeof memberships)[number] } =>
-        entry !== null
-    )
+    return groups
+      .map((group, index) => (group ? { group, membership: memberships[index] } : null))
+      .filter(
+        (entry): entry is { group: NonNullable<(typeof groups)[number]>; membership: (typeof memberships)[number] } =>
+          entry !== null
+      )
+  },
+})
+
+export const get = query({
+  args: {
+    groupId: v.id("groups"),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      group: groupValidator,
+      membership: groupMemberValidator,
+    })
+  ),
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx)
+    
+    const group = await ctx.db.get(args.groupId)
+    if (!group) return null
+    
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_groupId_userId", (q) => 
+        q.eq("groupId", args.groupId).eq("userId", user._id)
+      )
+      .unique()
+    
+    if (!membership) return null
+    
+    return { group, membership }
+  },
+})
+
+export const getDetail = query({
+  args: {
+    groupId: v.id("groups"),
+    includePast: v.optional(v.boolean()),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      group: groupValidator,
+      membership: groupMemberValidator,
+      memberCount: v.number(),
+      challenges: v.array(challengeValidator),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx)
+
+    const group = await ctx.db.get(args.groupId)
+    if (!group) return null
+
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_groupId_userId", (q) =>
+        q.eq("groupId", args.groupId).eq("userId", user._id)
+      )
+      .unique()
+
+    if (!membership) return null
+
+    const memberships = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
+      .collect()
+
+    const now = Date.now()
+    const challengeQuery = ctx.db
+      .query("challenges")
+      .withIndex("by_groupId_dueAt", (q) =>
+        args.includePast ? q.eq("groupId", args.groupId) : q.eq("groupId", args.groupId).gte("dueAt", now)
+      )
+    const filteredChallenges = await challengeQuery.collect()
+
+    return {
+      group,
+      membership,
+      memberCount: memberships.length,
+      challenges: filteredChallenges,
+    }
   },
 })

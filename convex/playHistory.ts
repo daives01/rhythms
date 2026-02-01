@@ -7,12 +7,20 @@ const playHistoryValidator = v.object({
   _creationTime: v.number(),
   userId: v.id("users"),
   groupId: v.optional(v.id("groups")),
-  assignmentId: v.optional(v.id("assignments")),
+  challengeId: v.optional(v.id("challenges")),
   seed: v.string(),
   tempo: v.number(),
   difficulty: v.string(),
   score: v.number(),
   createdAt: v.number(),
+  userName: v.optional(v.string()),
+  userEmail: v.optional(v.string()),
+})
+
+const userPreviewValidator = v.object({
+  _id: v.id("users"),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
 })
 
 export const add = mutation({
@@ -22,36 +30,42 @@ export const add = mutation({
     difficulty: v.string(),
     score: v.number(),
     groupId: v.optional(v.id("groups")),
-    assignmentId: v.optional(v.id("assignments")),
+    challengeId: v.optional(v.id("challenges")),
   },
   returns: playHistoryValidator,
   handler: async (ctx, args) => {
     const user = await requireCurrentUser(ctx)
+    const now = Date.now()
 
     if (args.groupId) {
       await requireGroupMember(ctx, args.groupId)
     }
 
-    if (args.assignmentId) {
-      const assignment = await ctx.db.get(args.assignmentId)
-      if (!assignment) {
-        throw new ConvexError({ code: "NOT_FOUND", message: "Assignment not found." })
+    if (args.challengeId) {
+      const challenge = await ctx.db.get(args.challengeId)
+      if (!challenge) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "Challenge not found." })
       }
-      await requireGroupMember(ctx, assignment.groupId)
-      if (assignment.dueAt < Date.now()) {
-        throw new ConvexError({ code: "FORBIDDEN", message: "Assignment is past due." })
+      await requireGroupMember(ctx, challenge.groupId)
+      if (args.groupId && args.groupId !== challenge.groupId) {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Challenge does not belong to group." })
+      }
+      if (challenge.dueAt < Date.now()) {
+        throw new ConvexError({ code: "FORBIDDEN", message: "Challenge is past due." })
       }
     }
 
     const playId = await ctx.db.insert("playHistory", {
       userId: user._id,
       groupId: args.groupId,
-      assignmentId: args.assignmentId,
+      challengeId: args.challengeId,
       seed: args.seed,
       tempo: args.tempo,
       difficulty: args.difficulty,
       score: args.score,
-      createdAt: Date.now(),
+      createdAt: now,
+      userName: user.name,
+      userEmail: user.email,
     })
 
     const record = await ctx.db.get(playId)
@@ -79,26 +93,90 @@ export const listForUser = query({
   },
 })
 
-export const listForAssignment = query({
+export const listForChallenge = query({
   args: {
-    assignmentId: v.id("assignments"),
+    challengeId: v.id("challenges"),
   },
-  returns: v.array(playHistoryValidator),
+  returns: v.array(
+    v.object({
+      play: playHistoryValidator,
+      user: userPreviewValidator,
+    })
+  ),
   handler: async (ctx, args) => {
-    const assignment = await ctx.db.get(args.assignmentId)
-    if (!assignment) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "Assignment not found." })
+    const challenge = await ctx.db.get(args.challengeId)
+    if (!challenge) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Challenge not found." })
     }
-    await requireGroupAdmin(ctx, assignment.groupId)
+    await requireGroupMember(ctx, challenge.groupId)
 
-    if (!assignment.leaderboard) {
+    if (!challenge.leaderboard) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Leaderboard disabled." })
     }
 
-    return await ctx.db
+    const plays = await ctx.db
       .query("playHistory")
-      .withIndex("by_assignmentId_createdAt", (q) => q.eq("assignmentId", args.assignmentId))
+      .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
+      .collect()
+
+    const bestPlaysByUser = new Map<string, (typeof plays)[number]>()
+    for (const play of plays) {
+      const existing = bestPlaysByUser.get(play.userId)
+      if (!existing) {
+        bestPlaysByUser.set(play.userId, play)
+        continue
+      }
+      if (play.score > existing.score || (play.score === existing.score && play.createdAt > existing.createdAt)) {
+        bestPlaysByUser.set(play.userId, play)
+      }
+    }
+
+    return Array.from(bestPlaysByUser.values())
+      .map((play) => ({
+        play,
+        user: {
+          _id: play.userId,
+          name: play.userName,
+          email: play.userEmail,
+        },
+      }))
+      .sort((a, b) => {
+        if (b.play.score !== a.play.score) return b.play.score - a.play.score
+        return b.play.createdAt - a.play.createdAt
+      })
+  },
+})
+
+export const listCompletionsForChallenge = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  returns: v.array(
+    v.object({
+      play: playHistoryValidator,
+      user: userPreviewValidator,
+    })
+  ),
+  handler: async (ctx, args) => {
+    const challenge = await ctx.db.get(args.challengeId)
+    if (!challenge) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Challenge not found." })
+    }
+    await requireGroupAdmin(ctx, challenge.groupId)
+
+    const plays = await ctx.db
+      .query("playHistory")
+      .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
       .order("desc")
       .collect()
+
+    return plays.map((play) => ({
+      play,
+      user: {
+        _id: play.userId,
+        name: play.userName,
+        email: play.userEmail,
+      },
+    }))
   },
 })
