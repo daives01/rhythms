@@ -50,6 +50,7 @@ export default defineSchema({
     tempo: v.optional(v.number()),
     difficulty: v.optional(v.string()),
     seed: v.optional(v.string()),
+    tuplets: v.optional(v.boolean()),
     leaderboard: v.boolean(),
     createdAt: v.number(),
   })
@@ -62,6 +63,7 @@ export default defineSchema({
     seed: v.string(),
     tempo: v.number(),
     difficulty: v.string(),
+    tuplets: v.optional(v.boolean()),
     score: v.number(),
     createdAt: v.number(),
     userName: v.optional(v.string()),

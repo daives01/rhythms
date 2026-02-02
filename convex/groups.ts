@@ -47,6 +47,7 @@ const challengeValidator = v.object({
   tempo: v.optional(v.number()),
   difficulty: v.optional(v.string()),
   seed: v.optional(v.string()),
+  tuplets: v.optional(v.boolean()),
   leaderboard: v.boolean(),
   createdAt: v.number(),
 })
@@ -271,18 +272,25 @@ export const listMembers = query({
       .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
       .collect()
 
-    return memberships.map((membership) => ({
-      membership,
-      user: {
-        _id: membership.userId,
-        _creationTime: membership._creationTime,
-        authUserId: membership.userAuthUserId ?? "",
-        email: membership.userEmail,
-        name: membership.userName,
-        premium: membership.userPremium,
-        createdAt: membership.joinedAt,
-      },
-    }))
+    const users = await Promise.all(
+      memberships.map((membership) => ctx.db.get(membership.userId))
+    )
+
+    return memberships.map((membership, index) => {
+      const user = users[index]
+      return {
+        membership,
+        user: {
+          _id: membership.userId,
+          _creationTime: user?._creationTime ?? membership._creationTime,
+          authUserId: user?.authUserId ?? membership.userAuthUserId ?? "",
+          email: user?.email ?? membership.userEmail,
+          name: user?.name ?? membership.userName,
+          premium: user?.premium ?? membership.userPremium,
+          createdAt: user?.createdAt ?? membership.joinedAt,
+        },
+      }
+    })
   },
 })
 

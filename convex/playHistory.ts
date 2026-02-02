@@ -11,6 +11,7 @@ const playHistoryValidator = v.object({
   seed: v.string(),
   tempo: v.number(),
   difficulty: v.string(),
+  tuplets: v.optional(v.boolean()),
   score: v.number(),
   createdAt: v.number(),
   userName: v.optional(v.string()),
@@ -28,6 +29,7 @@ export const add = mutation({
     seed: v.string(),
     tempo: v.number(),
     difficulty: v.string(),
+    tuplets: v.optional(v.boolean()),
     score: v.number(),
     groupId: v.optional(v.id("groups")),
     challengeId: v.optional(v.id("challenges")),
@@ -62,6 +64,7 @@ export const add = mutation({
       seed: args.seed,
       tempo: args.tempo,
       difficulty: args.difficulty,
+      tuplets: args.tuplets,
       score: args.score,
       createdAt: now,
       userName: user.name,
@@ -144,6 +147,62 @@ export const listForChallenge = query({
         if (b.play.score !== a.play.score) return b.play.score - a.play.score
         return b.play.createdAt - a.play.createdAt
       })
+  },
+})
+
+export const listUserCompletionsForChallenge = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  returns: v.array(
+    v.object({
+      play: playHistoryValidator,
+      user: userPreviewValidator,
+    })
+  ),
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx)
+    const challenge = await ctx.db.get(args.challengeId)
+    if (!challenge) {
+      throw new ConvexError({ code: "NOT_FOUND", message: "Challenge not found." })
+    }
+    await requireGroupMember(ctx, challenge.groupId)
+
+    const plays = await ctx.db
+      .query("playHistory")
+      .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
+      .filter((q) => q.eq(q.field("userId"), user._id))
+      .order("desc")
+      .collect()
+
+    return plays.map((play) => ({
+      play,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    }))
+  },
+})
+
+export const listForGroupByUser = query({
+  args: {
+    groupId: v.id("groups"),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(playHistoryValidator),
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx)
+    await requireGroupMember(ctx, args.groupId)
+    const limit = Math.min(args.limit ?? 200, 500)
+
+    return await ctx.db
+      .query("playHistory")
+      .withIndex("by_groupId_createdAt", (q) => q.eq("groupId", args.groupId))
+      .filter((q) => q.eq(q.field("userId"), user._id))
+      .order("desc")
+      .take(limit)
   },
 })
 

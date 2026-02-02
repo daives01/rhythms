@@ -217,6 +217,7 @@ export function PlayPage() {
             seed: challengeData.seed,
             tempo: gameBpm,
             difficulty: gameDifficulty,
+            tuplets: gameTuplets,
             score: finalScore,
             groupId: challengeData.groupId as Id<"groups">,
             challengeId: challengeData.challengeId as Id<"challenges">,

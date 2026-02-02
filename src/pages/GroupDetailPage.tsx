@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { encodeChallenge, generateSeed, type ChallengeData } from "@/lib/random"
 import type { GameScore } from "@/types"
 import { ChallengeLeaderboard } from "@/components/challenges/ChallengeLeaderboard"
-import { ChallengeCompletions } from "@/components/challenges/ChallengeCompletions"
+import { ChallengeCompletions, UserChallengeCompletions } from "@/components/challenges/ChallengeCompletions"
 import { transportEngine } from "@/engines/TransportEngine"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
@@ -79,6 +79,7 @@ interface ChallengeEntry {
   tempo?: number
   difficulty?: string
   seed?: string
+  tuplets?: boolean
   leaderboard: boolean
   createdAt: number
 }
@@ -90,6 +91,7 @@ interface ChallengeFormProps {
     tempo?: number
     difficulty?: string
     seed?: string
+    tuplets?: boolean
     leaderboard: boolean
   }) => Promise<void>
   isSubmitting: boolean
@@ -102,6 +104,8 @@ interface PlayHistoryEntry {
   seed: string
   tempo: number
   difficulty: string
+  challengeId?: Id<"challenges">
+  tuplets?: boolean
   score: number
   createdAt: number
 }
@@ -110,9 +114,8 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
   const [title, setTitle] = useState("")
   const [dueAt, setDueAt] = useState("")
   const [tempo, setTempo] = useState(120)
-  const [tempoEnabled, setTempoEnabled] = useState(false)
   const [difficulty, setDifficulty] = useState("medium")
-  const [difficultyEnabled, setDifficultyEnabled] = useState(false)
+  const [tupletsEnabled, setTupletsEnabled] = useState(false)
   const [leaderboard, setLeaderboard] = useState(false)
   const [seedMode, setSeedMode] = useState<"random" | "history">("random")
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
@@ -135,9 +138,8 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
     setSelectedSeed(entry.seed)
     setSeedMode("history")
     setTempo(entry.tempo)
-    setTempoEnabled(true)
     setDifficulty(entry.difficulty)
-    setDifficultyEnabled(true)
+    setTupletsEnabled(entry.tuplets ?? false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,9 +149,10 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
     await onSubmit({
       title: title.trim(),
       dueAt: new Date(dueAt).getTime(),
-      tempo: tempoEnabled ? tempo : undefined,
-      difficulty: difficultyEnabled ? difficulty : undefined,
+      tempo,
+      difficulty,
       seed: seedMode === "history" ? selectedSeed ?? undefined : undefined,
+      tuplets: tupletsEnabled,
       leaderboard,
     })
     
@@ -157,9 +160,8 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
     setTitle("")
     setDueAt("")
     setTempo(120)
-    setTempoEnabled(false)
     setDifficulty("medium")
-    setDifficultyEnabled(false)
+    setTupletsEnabled(false)
     setLeaderboard(false)
     setSeedMode("random")
     setSelectedHistoryId(null)
@@ -237,7 +239,6 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
             type="button"
             onClick={() => {
               setSeedMode("history")
-              setDifficultyEnabled(true)
             }}
             className={cn(
               "flex-1 border px-3 py-2 text-[10px] uppercase tracking-wider transition-colors",
@@ -290,18 +291,10 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
       </div>
 
       <div className="flex flex-col gap-3">
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Optional constraints</span>
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Challenge settings</span>
         <div className="grid gap-2">
           <label className="flex items-center justify-between border border-border px-3 py-2 text-[10px] uppercase tracking-wider">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={tempoEnabled}
-                onChange={(e) => setTempoEnabled(e.target.checked)}
-                className="w-4 h-4"
-              />
-              Lock tempo
-            </div>
+            <span className="text-muted-foreground">Tempo</span>
             <input
               aria-label="Challenge tempo"
               type="number"
@@ -309,32 +302,33 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
               max={220}
               value={tempo}
               onChange={(e) => setTempo(Number(e.target.value))}
-              disabled={!tempoEnabled}
+              disabled={seedMode === "history"}
               className="w-20 bg-transparent text-right text-foreground disabled:text-muted-foreground/40"
             />
           </label>
           <label className="flex items-center justify-between border border-border px-3 py-2 text-[10px] uppercase tracking-wider">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={difficultyEnabled}
-                onChange={(e) => setDifficultyEnabled(e.target.checked)}
-                disabled={seedMode === "history"}
-                className="w-4 h-4"
-              />
-              Lock difficulty
-            </div>
+            <span className="text-muted-foreground">Difficulty</span>
             <select
               aria-label="Challenge difficulty"
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value)}
-              disabled={!difficultyEnabled || seedMode === "history"}
+              disabled={seedMode === "history"}
               className="bg-transparent text-right text-foreground disabled:text-muted-foreground/40"
             >
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
             </select>
+          </label>
+          <label className="flex items-center justify-between border border-border px-3 py-2 text-[10px] uppercase tracking-wider">
+            <span className="text-muted-foreground">Tuplets</span>
+            <input
+              type="checkbox"
+              checked={tupletsEnabled}
+              onChange={(e) => setTupletsEnabled(e.target.checked)}
+              disabled={seedMode === "history"}
+              className="w-4 h-4"
+            />
           </label>
         </div>
       </div>
@@ -394,6 +388,10 @@ export function GroupDetailPage() {
   const updateChallenge = useMutation(api.challenges.update)
   const deleteChallenge = useMutation(api.challenges.delete_)
   const playHistory = useQuery(api.playHistory.listForUser, session.data ? { limit: 12 } : "skip")
+  const groupCompletions = useQuery(
+    api.playHistory.listForGroupByUser,
+    session.data && groupId ? { groupId, limit: 200 } : "skip"
+  )
 
   const [isCreatingChallenge, setIsCreatingChallenge] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -407,6 +405,7 @@ export function GroupDetailPage() {
   const [editDueAt, setEditDueAt] = useState("")
   const [editTempo, setEditTempo] = useState(120)
   const [editDifficulty, setEditDifficulty] = useState("medium")
+  const [editTuplets, setEditTuplets] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   const includeTuplets = loadTupletsSetting()
@@ -418,11 +417,12 @@ export function GroupDetailPage() {
 
   const handleStartChallenge = (challenge: ChallengeEntry) => {
     const difficultyValue = challenge.difficulty ? difficultyValueMap[challenge.difficulty] ?? 0.5 : 0.5
+    const challengeTuplets = challenge.tuplets ?? includeTuplets
     const challengeData: ChallengeData = {
       seed: challenge.seed ?? generateSeed(),
       bpm: challenge.tempo ?? 120,
       difficulty: difficultyValue,
-      tuplets: includeTuplets,
+      tuplets: challengeTuplets,
       groupId: challenge.groupId,
       challengeId: challenge._id,
     }
@@ -436,6 +436,7 @@ export function GroupDetailPage() {
     tempo?: number
     difficulty?: string
     seed?: string
+    tuplets?: boolean
     leaderboard: boolean
   }) => {
     setErrorMessage(null)
@@ -448,6 +449,7 @@ export function GroupDetailPage() {
         tempo: data.tempo,
         difficulty: data.difficulty,
         seed: data.seed,
+        tuplets: data.tuplets,
         leaderboard: data.leaderboard,
       })
     } catch (error) {
@@ -464,6 +466,7 @@ export function GroupDetailPage() {
     setEditDueAt(new Date(challenge.dueAt).toISOString().slice(0, 16))
     setEditTempo(challenge.tempo ?? 120)
     setEditDifficulty(challenge.difficulty ?? "medium")
+    setEditTuplets(challenge.tuplets ?? false)
   }
 
   const cancelEditing = () => {
@@ -481,6 +484,7 @@ export function GroupDetailPage() {
         dueAt: new Date(editDueAt).getTime(),
         tempo: editTempo,
         difficulty: editDifficulty,
+        tuplets: editTuplets,
       })
       setEditingChallenge(null)
     } catch (error) {
@@ -618,11 +622,12 @@ export function GroupDetailPage() {
     const difficultyValue = selectedChallenge.difficulty
       ? difficultyValueMap[selectedChallenge.difficulty] ?? 0.5
       : 0.5
+    const challengeTuplets = selectedChallenge.tuplets ?? includeTuplets
     const challengeData: ChallengeData = {
       seed: selectedChallenge.seed ?? generateSeed(),
       bpm: selectedChallenge.tempo ?? 120,
       difficulty: difficultyValue,
-      tuplets: includeTuplets,
+      tuplets: challengeTuplets,
       groupId: selectedChallenge.groupId,
       challengeId: selectedChallenge._id,
     }
@@ -727,11 +732,16 @@ export function GroupDetailPage() {
                       <div className="grid gap-2">
                         {activeChallenges.map((challenge) => {
                           const dueStatus = getDueStatus(challenge.dueAt)
+                          const hasCompleted = Boolean(
+                            groupCompletions?.some((entry) => entry.challengeId === challenge._id)
+                          )
                           return (
                             <div key={challenge._id} className="border border-border p-3 flex flex-col gap-3">
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <p className="text-sm text-foreground">{challenge.title}</p>
+                                  <p className="text-sm text-foreground uppercase tracking-wide">
+                                    {challenge.title}
+                                  </p>
                                   {challenge.description && (
                                     <p className="text-[10px] text-muted-foreground/60 mt-1">{challenge.description}</p>
                                   )}
@@ -756,11 +766,11 @@ export function GroupDetailPage() {
                                 </span>
                                 <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
                                 <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                                {challenge.leaderboard && <span>Leaderboard</span>}
+                                <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
+                                {hasCompleted && (
+                                  <span className="text-emerald-400">Completed</span>
+                                )}
                               </div>
-                              {challenge.leaderboard && (
-                                <ChallengeLeaderboard challengeId={challenge._id} />
-                              )}
                               <div className="flex flex-wrap gap-2">
                                 <Button
                                   size="sm"
@@ -782,12 +792,12 @@ export function GroupDetailPage() {
                           )
                         })}
                       </div>
-                    ) : (
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                        No active challenges.
-                      </p>
-                    )}
-                  </div>
+                  ) : (
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                      No active challenges.
+                    </p>
+                  )}
+                </div>
 
                   {/* Create challenge button - Admin only */}
                   {isAdmin && (
@@ -825,11 +835,11 @@ export function GroupDetailPage() {
                   {/* Past challenges */}
                   {showPastChallenges && pastChallenges.length > 0 && (
                     <div className="grid gap-2">
-                      {pastChallenges.map((challenge) => (
-                        <div key={challenge._id} className="border border-border p-3 flex flex-col gap-2 opacity-60">
-                          <div className="flex items-start justify-between">
-                            <p className="text-sm text-foreground">{challenge.title}</p>
-                            {isAdmin && (
+                        {pastChallenges.map((challenge) => (
+                          <div key={challenge._id} className="border border-border p-3 flex flex-col gap-2 opacity-60">
+                            <div className="flex items-start justify-between">
+                              <p className="text-sm text-foreground uppercase tracking-wide">{challenge.title}</p>
+                              {isAdmin && (
                               <button
                                 type="button"
                                 onClick={() => startEditing(challenge)}
@@ -838,15 +848,16 @@ export function GroupDetailPage() {
                                 Edit
                               </button>
                             )}
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
+                              <span className="text-destructive">Past due</span>
+                              <span>Ended {formatShortDate(challenge.dueAt)}</span>
+                              <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
+                              <span>{formatDifficultyLabel(challenge.difficulty)}</span>
+                              <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
-                            <span className="text-destructive">Past due</span>
-                            <span>Ended {formatShortDate(challenge.dueAt)}</span>
-                            <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
-                            <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
 
@@ -908,6 +919,15 @@ export function GroupDetailPage() {
                             <option value="hard">Hard</option>
                           </select>
                         </div>
+                        <label className="flex items-center justify-between border border-border px-3 py-2 text-[10px] uppercase tracking-wider">
+                          <span className="text-muted-foreground">Tuplets</span>
+                          <input
+                            type="checkbox"
+                            checked={editTuplets}
+                            onChange={(e) => setEditTuplets(e.target.checked)}
+                            className="w-4 h-4"
+                          />
+                        </label>
                         <Button
                           variant="secondary"
                           size="sm"
@@ -1006,6 +1026,9 @@ export function GroupDetailPage() {
                       Leaderboard is disabled for this challenge.
                     </p>
                   )}
+                  <div className="border-t border-border pt-4">
+                    <UserChallengeCompletions challengeId={selectedChallenge._id} />
+                  </div>
                   {isAdmin && (
                     <div className="border-t border-border pt-4">
                       <ChallengeCompletions challengeId={selectedChallenge._id} />

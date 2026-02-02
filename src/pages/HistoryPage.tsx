@@ -140,11 +140,12 @@ export function HistoryPage() {
                 {history?.length ? (
                   <div className="grid gap-3">
                     {history.map((entry) => {
+                      const entryTuplets = entry.tuplets ?? includeTuplets
                       const challengeData: ChallengeData = {
                         seed: entry.seed,
                         bpm: entry.tempo,
                         difficulty: difficultyValueMap[entry.difficulty] ?? 0.5,
-                        tuplets: includeTuplets,
+                        tuplets: entryTuplets,
                       }
                       const encoded = encodeChallenge(challengeData)
                       return (
@@ -155,7 +156,7 @@ export function HistoryPage() {
                           <div className="flex flex-col gap-1">
                             <span className="text-foreground">{entry.score} pts</span>
                             <span className="text-muted-foreground/60">
-                              {formatShortDate(entry.createdAt)} · {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)}
+                              {formatShortDate(entry.createdAt)} · {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)} · {entryTuplets ? "Tuplets on" : "Tuplets off"}
                             </span>
                           </div>
                           <button

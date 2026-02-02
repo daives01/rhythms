@@ -174,6 +174,7 @@ export function GameOverPage() {
       seed: challengeData.seed,
       tempo: challengeData.bpm,
       difficulty: getDifficultyFromValue(challengeData.difficulty),
+      tuplets: challengeData.tuplets,
       score: finalScore,
       groupId: challengeData.groupId ? (challengeData.groupId as Id<"groups">) : undefined,
       challengeId: challengeData.challengeId ? (challengeData.challengeId as Id<"challenges">) : undefined,

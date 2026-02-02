@@ -72,3 +72,48 @@ export function ChallengeCompletions({ challengeId }: { challengeId: Id<"challen
     </div>
   )
 }
+
+export function UserChallengeCompletions({ challengeId }: { challengeId: Id<"challenges"> }) {
+  const entries = useQuery(api.playHistory.listUserCompletionsForChallenge, { challengeId }) as
+    | ChallengeCompletionEntry[]
+    | undefined
+
+  if (!entries) {
+    return (
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+        Loading your completions...
+      </div>
+    )
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+        You haven&apos;t completed this challenge yet.
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        Your completions ({entries.length})
+      </span>
+      <div className="flex flex-col gap-1">
+        {entries.map((entry) => (
+          <div
+            key={entry.play._id}
+            className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground/70"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="truncate text-foreground/70">
+                {formatFullDate(entry.play.createdAt)}
+              </span>
+            </div>
+            <span className="text-foreground">{entry.play.score} pts</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

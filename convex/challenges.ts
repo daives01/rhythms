@@ -13,6 +13,7 @@ const challengeValidator = v.object({
   tempo: v.optional(v.number()),
   difficulty: v.optional(v.string()),
   seed: v.optional(v.string()),
+  tuplets: v.optional(v.boolean()),
   leaderboard: v.boolean(),
   createdAt: v.number(),
 })
@@ -26,6 +27,7 @@ export const create = mutation({
     tempo: v.optional(v.number()),
     difficulty: v.optional(v.string()),
     seed: v.optional(v.string()),
+    tuplets: v.optional(v.boolean()),
     leaderboard: v.optional(v.boolean()),
   },
   returns: challengeValidator,
@@ -40,6 +42,7 @@ export const create = mutation({
       tempo: args.tempo,
       difficulty: args.difficulty,
       seed: args.seed,
+      tuplets: args.tuplets,
       leaderboard: args.leaderboard ?? true,
       createdAt: Date.now(),
     })
@@ -116,6 +119,7 @@ export const update = mutation({
     dueAt: v.optional(v.number()),
     tempo: v.optional(v.number()),
     difficulty: v.optional(v.string()),
+    tuplets: v.optional(v.boolean()),
     leaderboard: v.optional(v.boolean()),
   },
   returns: challengeValidator,
@@ -132,6 +136,7 @@ export const update = mutation({
     if (args.dueAt !== undefined) updates.dueAt = args.dueAt
     if (args.tempo !== undefined) updates.tempo = args.tempo
     if (args.difficulty !== undefined) updates.difficulty = args.difficulty
+    if (args.tuplets !== undefined) updates.tuplets = args.tuplets
     if (args.leaderboard !== undefined) updates.leaderboard = args.leaderboard
 
     await ctx.db.patch(args.challengeId, updates)
