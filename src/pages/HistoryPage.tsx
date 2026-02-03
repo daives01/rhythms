@@ -1,10 +1,12 @@
-import { useQuery } from "convex/react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { usePaginatedQuery } from "convex/react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
 import { authClient } from "@/lib/auth-client"
 import { encodeChallenge, type ChallengeData } from "@/lib/random"
+import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import { api } from "../../convex/_generated/api"
 
 const SETTINGS_KEY = "rhythm-settings"
@@ -40,8 +42,19 @@ const difficultyValueMap: Record<string, number> = {
 }
 
 export function HistoryPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const session = authClient.useSession()
-  const history = useQuery(api.playHistory.listForUser, session.data ? { limit: 50 } : "skip")
+  const {
+    results: history,
+    status,
+    loadMore,
+    isLoading,
+  } = usePaginatedQuery(
+    api.playHistory.listForUserPaginated,
+    session.data ? {} : "skip",
+    { initialNumItems: 20 }
+  )
   const includeTuplets = loadTupletsSetting()
 
   if (session.isPending) {
@@ -78,7 +91,13 @@ export function HistoryPage() {
               <PanelContainer className="w-full">
                 <div className="p-6 flex flex-col gap-4">
                   <Button
-                    onClick={() => navigate("/account")}
+                    onClick={() => {
+                      const returnTo = getReturnToFromLocation(location)
+                      navigate({
+                        pathname: location.pathname,
+                        search: buildAuthSearch(location.search, returnTo),
+                      })
+                    }}
                     className="w-full"
                   >
                     Sign in
@@ -121,43 +140,61 @@ export function HistoryPage() {
           <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
             <PanelContainer enableLines>
               <div className="p-4 flex flex-col gap-4">
-                {history?.length ? (
-                  <div className="grid gap-3">
-                    {history.map((entry) => {
-                      const entryTuplets = entry.tuplets ?? includeTuplets
-                      const challengeData: ChallengeData = {
-                        seed: entry.seed,
-                        bpm: entry.tempo,
-                        difficulty: difficultyValueMap[entry.difficulty] ?? 0.5,
-                        tuplets: entryTuplets,
-                      }
-                      const encoded = encodeChallenge(challengeData)
-                      return (
-                        <div
-                          key={entry._id}
-                          className="border border-border p-3 flex items-center justify-between text-[10px] uppercase tracking-wider"
-                        >
-                          <div className="flex flex-col gap-1">
-                            <span className="text-foreground">{entry.score} pts</span>
-                            <span className="text-muted-foreground/60">
-                              {formatShortDate(entry.createdAt)} · {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)} · {entryTuplets ? "Tuplets on" : "Tuplets off"}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })}
-                            className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                {isLoading && history.length === 0 ? (
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                    Loading history...
+                  </p>
+                ) : history.length ? (
+                  <div className="max-h-[360px] overflow-y-auto pr-1">
+                    <div className="grid gap-3">
+                      {history.map((entry) => {
+                        const entryTuplets = entry.tuplets ?? includeTuplets
+                        const challengeData: ChallengeData = {
+                          seed: entry.seed,
+                          bpm: entry.tempo,
+                          difficulty: difficultyValueMap[entry.difficulty] ?? 0.5,
+                          tuplets: entryTuplets,
+                        }
+                        const encoded = encodeChallenge(challengeData)
+                        return (
+                          <div
+                            key={entry._id}
+                            className="border border-border p-3 flex items-center justify-between text-[10px] uppercase tracking-wider"
                           >
-                            Replay
-                          </button>
-                        </div>
-                      )
-                    })}
+                            <div className="flex flex-col gap-1">
+                              <span className="text-foreground">{entry.score} pts</span>
+                              <span className="text-muted-foreground/60">
+                                {formatShortDate(entry.createdAt)} · {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)} · {entryTuplets ? "Tuplets on" : "Tuplets off"}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })}
+                              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                            >
+                              Replay
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
                     No history yet. Start playing to see your sessions here.
                   </p>
+                )}
+                {(status === "CanLoadMore" || status === "LoadingMore") && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => loadMore(20)}
+                    disabled={status === "LoadingMore"}
+                    className="text-[10px] uppercase tracking-wider"
+                  >
+                    {status === "LoadingMore" ? "Loading more..." : "Load more"}
+                  </Button>
                 )}
               </div>
             </PanelContainer>

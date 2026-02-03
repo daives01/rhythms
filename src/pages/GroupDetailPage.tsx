@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom"
-import { useMutation, useQuery } from "convex/react"
+import { useMutation, useQuery, useConvex } from "convex/react"
 import { CalendarClock, Plus, UserPlus, UserCog, ChevronUp, ChevronDown, Trophy } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import type { Id } from "../../convex/_generated/dataModel"
 import { InviteManager } from "@/components/groups/InviteManager"
 import { MemberManager } from "@/components/groups/MemberManager"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import {
   Popover,
   PopoverContent,
@@ -259,28 +260,30 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
         ) : (
           <div className="flex flex-col gap-2">
             {history?.length ? (
-              <div className="grid gap-2">
-                {history.map((entry) => (
-                  <button
-                    key={entry._id}
-                    type="button"
-                    onClick={() => handleSelectHistory(entry)}
-                    className={cn(
-                      "border px-3 py-2 text-left transition-colors",
-                      selectedHistoryId === entry._id
-                        ? "border-foreground text-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between text-[10px] uppercase tracking-wider">
-                      <span>{entry.score} pts</span>
-                      <span className="text-muted-foreground/60">{formatShortDate(entry.createdAt)}</span>
-                    </div>
-                    <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                      {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)}
-                    </div>
-                  </button>
-                ))}
+              <div className="max-h-[200px] overflow-y-auto pr-1">
+                <div className="grid gap-2">
+                  {history.map((entry) => (
+                    <button
+                      key={entry._id}
+                      type="button"
+                      onClick={() => handleSelectHistory(entry)}
+                      className={cn(
+                        "border px-3 py-2 text-left transition-colors",
+                        selectedHistoryId === entry._id
+                          ? "border-foreground text-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider">
+                        <span>{entry.score} pts</span>
+                        <span className="text-muted-foreground/60">{formatShortDate(entry.createdAt)}</span>
+                      </div>
+                      <div className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                        {entry.tempo} bpm · {formatDifficultyLabel(entry.difficulty)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
@@ -362,6 +365,7 @@ export function GroupDetailPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
+  const convex = useConvex()
   
   const groupId = id as Id<"groups">
   const challengeParam = searchParams.get("challenge")
@@ -542,7 +546,16 @@ export function GroupDetailPage() {
             <div className="w-full landscape:w-[480px] landscape:shrink-0">
               <PanelContainer className="w-full">
                 <div className="p-6 flex flex-col gap-4">
-                  <Button onClick={() => navigate("/account")} className="w-full">
+                  <Button
+                    onClick={() => {
+                      const returnTo = getReturnToFromLocation(location)
+                      navigate({
+                        pathname: location.pathname,
+                        search: buildAuthSearch(location.search, returnTo),
+                      })
+                    }}
+                    className="w-full"
+                  >
                     Sign in
                   </Button>
                 </div>
@@ -709,68 +722,84 @@ export function GroupDetailPage() {
                     </div>
                     
                     {activeChallenges.length > 0 ? (
-                      <div className="grid gap-2">
-                        {activeChallenges.map((challenge) => {
-                          const dueStatus = getDueStatus(challenge.dueAt)
-                          const hasCompleted = Boolean(
-                            groupCompletions?.some((entry) => entry.challengeId === challenge._id)
-                          )
-                          return (
-                            <div key={challenge._id} className="border border-border p-3 flex flex-col gap-3">
-                              <div className="flex items-start justify-between">
-                                <div>
-                                  <p className="text-sm text-foreground uppercase tracking-wide">
-                                    {challenge.title}
-                                  </p>
-                                  {challenge.description && (
-                                    <p className="text-[10px] text-muted-foreground/60 mt-1">{challenge.description}</p>
+                      <div className="max-h-[420px] overflow-y-auto pr-1">
+                        <div className="grid gap-2">
+                          {activeChallenges.map((challenge) => {
+                            const dueStatus = getDueStatus(challenge.dueAt)
+                            const hasCompleted = Boolean(
+                              groupCompletions?.some((entry) => entry.challengeId === challenge._id)
+                            )
+                            return (
+                              <div key={challenge._id} className="border border-border p-3 flex flex-col gap-3">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <p className="text-sm text-foreground uppercase tracking-wide">
+                                      {challenge.title}
+                                    </p>
+                                    {challenge.description && (
+                                      <p className="text-[10px] text-muted-foreground/60 mt-1">{challenge.description}</p>
+                                    )}
+                                  </div>
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditing(challenge)}
+                                      className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                                    >
+                                      Edit
+                                    </button>
                                   )}
                                 </div>
-                                {isAdmin && (
-                                  <button
-                                    type="button"
-                                    onClick={() => startEditing(challenge)}
-                                    className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                                <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
+                                  <span className={cn(
+                                    "flex items-center gap-1",
+                                    dueStatus.isPast ? "text-destructive" : ""
+                                  )}>
+                                    <CalendarClock className="w-3 h-3" />
+                                    {dueStatus.text}
+                                  </span>
+                                  <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
+                                  <span>{formatDifficultyLabel(challenge.difficulty)}</span>
+                                  <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
+                                  {hasCompleted && (
+                                    <span className="text-emerald-400">Completed</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleStartChallenge(challenge)}
+                                    className="text-[10px] uppercase tracking-wider"
                                   >
-                                    Edit
-                                  </button>
-                                )}
+                                    Start challenge
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onMouseEnter={() => {
+                                      if (session.data) {
+                                        void convex.query(api.challenges.get, {
+                                          challengeId: challenge._id,
+                                        })
+                                      }
+                                    }}
+                                    onFocus={() => {
+                                      if (session.data) {
+                                        void convex.query(api.challenges.get, {
+                                          challengeId: challenge._id,
+                                        })
+                                      }
+                                    }}
+                                    onClick={() => navigate(`/groups/${groupId}?challenge=${challenge._id}`)}
+                                    className="text-[10px] uppercase tracking-wider"
+                                  >
+                                    View details
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
-                                <span className={cn(
-                                  "flex items-center gap-1",
-                                  dueStatus.isPast ? "text-destructive" : ""
-                                )}>
-                                  <CalendarClock className="w-3 h-3" />
-                                  {dueStatus.text}
-                                </span>
-                                <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
-                                <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                                <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
-                                {hasCompleted && (
-                                  <span className="text-emerald-400">Completed</span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleStartChallenge(challenge)}
-                                  className="text-[10px] uppercase tracking-wider"
-                                >
-                                  Start challenge
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => navigate(`/groups/${groupId}?challenge=${challenge._id}`)}
-                                  className="text-[10px] uppercase tracking-wider"
-                                >
-                                  View details
-                                </Button>
-                              </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
                       </div>
                   ) : (
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
@@ -814,30 +843,32 @@ export function GroupDetailPage() {
 
                   {/* Past challenges */}
                   {showPastChallenges && pastChallenges.length > 0 && (
-                    <div className="grid gap-2">
-                        {pastChallenges.map((challenge) => (
-                          <div key={challenge._id} className="border border-border p-3 flex flex-col gap-2 opacity-60">
-                            <div className="flex items-start justify-between">
-                              <p className="text-sm text-foreground uppercase tracking-wide">{challenge.title}</p>
-                              {isAdmin && (
-                              <button
-                                type="button"
-                                onClick={() => startEditing(challenge)}
-                                className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                              >
-                                Edit
-                              </button>
-                            )}
+                    <div className="max-h-[320px] overflow-y-auto pr-1">
+                      <div className="grid gap-2">
+                          {pastChallenges.map((challenge) => (
+                            <div key={challenge._id} className="border border-border p-3 flex flex-col gap-2 opacity-60">
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm text-foreground uppercase tracking-wide">{challenge.title}</p>
+                                {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditing(challenge)}
+                                  className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
+                                <span className="text-destructive">Past due</span>
+                                <span>Ended {formatShortDate(challenge.dueAt)}</span>
+                                <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
+                                <span>{formatDifficultyLabel(challenge.difficulty)}</span>
+                                <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
-                              <span className="text-destructive">Past due</span>
-                              <span>Ended {formatShortDate(challenge.dueAt)}</span>
-                              <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
-                              <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                              <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                      </div>
                     </div>
                   )}
 

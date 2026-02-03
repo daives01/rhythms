@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Gauge, Signal, Volume2, LogIn, Users } from "lucide-react"
-import { useMutation, useQuery } from "convex/react"
+import { Gauge, Signal, Volume2, Users } from "lucide-react"
+import { useQuery } from "convex/react"
 import { HorizontalSwitch } from "@/components/ui/horizontal-switch"
 import type { Difficulty } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
@@ -117,7 +117,6 @@ export function Game() {
   const session = authClient.useSession()
   const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
   const challenges = useQuery(api.challenges.listForUser, session.data ? {} : "skip") as ChallengeEntry[] | undefined
-  const redeemInvite = useMutation(api.groups.redeemInvite)
 
   // Check for challenge in URL (shared challenge link)
   const challengeParam = searchParams.get("challenge")
@@ -131,10 +130,8 @@ export function Game() {
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
   const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
-  const [inviteCode, setInviteCode] = useState("")
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [groupError, setGroupError] = useState<string | null>(null)
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false)
+  const canOpenGroups = Boolean(session.data && groups?.length)
 
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
@@ -193,21 +190,6 @@ export function Game() {
       setDifficultyValue(challengeData.difficulty)
       setIncludeTuplets(challengeData.tuplets)
       setTimeout(() => setIsAnimatingSliders(false), 300)
-    }
-  }
-
-  const handleRedeemInvite = async () => {
-    if (!inviteCode.trim()) return
-    setGroupError(null)
-    setIsRedeeming(true)
-    try {
-      const result = await redeemInvite({ code: inviteCode.trim().toUpperCase() })
-      setInviteCode("")
-      navigate(`/groups/${result.membership.groupId}`)
-    } catch (error) {
-      setGroupError(error instanceof Error ? error.message : "Failed to join group.")
-    } finally {
-      setIsRedeeming(false)
     }
   }
 
@@ -342,10 +324,15 @@ export function Game() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsGroupsModalOpen(true)}
+                disabled={!canOpenGroups}
+                onClick={() => {
+                  if (canOpenGroups) {
+                    setIsGroupsModalOpen(true)
+                  }
+                }}
                 className={cn(
-                  "text-[10px] uppercase tracking-wider",
-                  !session.data && "opacity-0 pointer-events-none"
+                  "text-[10px] uppercase tracking-wider transition-opacity",
+                  canOpenGroups ? "opacity-100" : "opacity-0 pointer-events-none"
                 )}
               >
                 <Users className="w-3 h-3 mr-1" />
@@ -435,7 +422,7 @@ export function Game() {
           </div>
         )}
 
-        {session.data && (
+        {session.data && groups?.length ? (
           <ResponsiveModal
             open={isGroupsModalOpen}
             onOpenChange={setIsGroupsModalOpen}
@@ -448,12 +435,6 @@ export function Game() {
                   Your groups ({groups?.length ?? 0})
                 </span>
               </div>
-
-              {groupError && (
-                <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
-                  {groupError}
-                </div>
-              )}
 
               {groups?.length ? (
                 <div className="grid gap-2">
@@ -487,42 +468,10 @@ export function Game() {
                     </button>
                   ))}
                 </div>
-              ) : (
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                  No groups yet. Join with an invite code.
-                </p>
-              )}
-
-              <div className="border-t border-border" />
-
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <LogIn className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Join with invite</span>
-                </div>
-                <input
-                  aria-label="Invite code"
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  placeholder="ENTER CODE"
-                  autoCapitalize="characters"
-                  className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground text-center"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRedeemInvite}
-                  disabled={isRedeeming || !inviteCode.trim()}
-                  className="text-[10px] uppercase tracking-wider"
-                >
-                  <LogIn className="w-3 h-3 mr-1" />
-                  Join group
-                </Button>
-              </div>
+              ) : null}
             </div>
           </ResponsiveModal>
-        )}
+        ) : null}
 
         {/* iOS Ringer Warning Modal */}
         {showRingerWarning && (

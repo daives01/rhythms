@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { useMutation, useQuery } from "convex/react"
 import { Plus } from "lucide-react"
+import { AccountPage } from "@/pages/AccountPage"
 import { authClient } from "@/lib/auth-client"
+import {
+  AUTH_MODAL_PARAM,
+  RETURN_TO_PARAM,
+  buildAuthSearch,
+  getReturnToFromLocation,
+  normalizeReturnTo,
+  stripAuthSearch,
+} from "@/lib/auth-redirect"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
@@ -16,7 +25,9 @@ export function AuthEntry() {
   const getOrCreateUser = useMutation(api.users.getOrCreateUser)
   const createGroup = useMutation(api.groups.create)
   const hasEnsuredUser = useRef(false)
+  const hasHandledAuthRedirect = useRef(false)
   const [open, setOpen] = useState(false)
+  const [authOpen, setAuthOpen] = useState(false)
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState("")
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
@@ -46,6 +57,26 @@ export function AuthEntry() {
     window.addEventListener("mousedown", handleClick)
     return () => window.removeEventListener("mousedown", handleClick)
   }, [open])
+
+  useEffect(() => {
+    if (session.isPending) return
+    const params = new URLSearchParams(location.search)
+    const wantsAuth = params.get(AUTH_MODAL_PARAM) === "1"
+    if (!wantsAuth) {
+      setAuthOpen(false)
+      return
+    }
+
+    if (session.data) {
+      if (hasHandledAuthRedirect.current) return
+      hasHandledAuthRedirect.current = true
+      const returnTo = normalizeReturnTo(params.get(RETURN_TO_PARAM))
+      navigate(returnTo, { replace: true })
+      return
+    }
+
+    setAuthOpen(true)
+  }, [location.search, navigate, session.data, session.isPending])
 
   if (location.pathname === "/play") {
     return null
@@ -83,7 +114,11 @@ export function AuthEntry() {
         type="button"
         onClick={() => {
           if (!session.data) {
-            navigate("/account")
+            const returnTo = getReturnToFromLocation(location)
+            navigate({
+              pathname: location.pathname,
+              search: buildAuthSearch(location.search, returnTo),
+            })
             return
           }
           setOpen((prev) => !prev)
@@ -185,6 +220,32 @@ export function AuthEntry() {
           </div>
         </ResponsiveModal>
       )}
+
+      <ResponsiveModal
+        open={authOpen}
+        onOpenChange={(nextOpen) => {
+          setAuthOpen(nextOpen)
+          if (!nextOpen) {
+            navigate({
+              pathname: location.pathname,
+              search: stripAuthSearch(location.search),
+            })
+          }
+        }}
+        title="Sign in"
+        description="Sign in or create an account to continue."
+      >
+        <AccountPage
+          mode="inline"
+          onAuthSuccess={() => {
+            if (hasHandledAuthRedirect.current) return
+            hasHandledAuthRedirect.current = true
+            const params = new URLSearchParams(location.search)
+            const returnTo = normalizeReturnTo(params.get(RETURN_TO_PARAM))
+            navigate(returnTo, { replace: true })
+          }}
+        />
+      </ResponsiveModal>
     </div>
   )
 }

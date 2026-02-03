@@ -1,12 +1,13 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useMutation, useQuery } from "convex/react"
-import { Plus, LogIn, Users } from "lucide-react"
+import { Plus, Users } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
 import { authClient } from "@/lib/auth-client"
+import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import { cn } from "@/lib/utils"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
@@ -30,6 +31,7 @@ interface ChallengeEntry {
 }
 
 export function GroupsPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
   const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
@@ -37,12 +39,9 @@ export function GroupsPage() {
   const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
   
   const createGroup = useMutation(api.groups.create)
-  const redeemInvite = useMutation(api.groups.redeemInvite)
 
   const [newGroupName, setNewGroupName] = useState("")
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
-  const [inviteCode, setInviteCode] = useState("")
-  const [isRedeeming, setIsRedeeming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleCreateGroup = async () => {
@@ -57,21 +56,6 @@ export function GroupsPage() {
       setErrorMessage(error instanceof Error ? error.message : "Unable to create group.")
     } finally {
       setIsCreatingGroup(false)
-    }
-  }
-
-  const handleRedeemInvite = async () => {
-    if (!inviteCode.trim()) return
-    setErrorMessage(null)
-    setIsRedeeming(true)
-    try {
-      const result = await redeemInvite({ code: inviteCode.trim().toUpperCase() })
-      setInviteCode("")
-      navigate(`/groups/${result.membership.groupId}`)
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Failed to join group.")
-    } finally {
-      setIsRedeeming(false)
     }
   }
 
@@ -116,7 +100,13 @@ export function GroupsPage() {
               <PanelContainer className="w-full">
                 <div className="p-6 flex flex-col gap-4">
                   <Button
-                    onClick={() => navigate("/account")}
+                    onClick={() => {
+                      const returnTo = getReturnToFromLocation(location)
+                      navigate({
+                        pathname: location.pathname,
+                        search: buildAuthSearch(location.search, returnTo),
+                      })
+                    }}
                     className="w-full"
                   >
                     Sign in
@@ -165,61 +155,31 @@ export function GroupsPage() {
 
             <PanelContainer enableLines>
               <div className="p-4 flex flex-col gap-6">
-                {/* Join and Create - side by side on desktop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Join with invite */}
+                {isPremium && (
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
-                      <LogIn className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Join with invite</span>
+                      <Plus className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Create new group</span>
                     </div>
                     <input
-                      aria-label="Invite code"
-                      type="text"
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                      placeholder="ENTER CODE"
-                      autoCapitalize="characters"
-                      className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground text-center"
+                      aria-label="Group name"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      placeholder="Group name"
+                      className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
                     />
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
-                      onClick={handleRedeemInvite}
-                      disabled={isRedeeming || !inviteCode.trim()}
+                      onClick={handleCreateGroup}
+                      disabled={isCreatingGroup || !newGroupName.trim()}
                       className="text-[10px] uppercase tracking-wider"
                     >
-                      <LogIn className="w-3 h-3 mr-1" />
-                      Join group
+                      <Plus className="w-4 h-4 mr-1" />
+                      Create group
                     </Button>
                   </div>
-
-                  {isPremium && (
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2">
-                        <Plus className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">Create new group</span>
-                      </div>
-                      <input
-                        aria-label="Group name"
-                        value={newGroupName}
-                        onChange={(e) => setNewGroupName(e.target.value)}
-                        placeholder="Group name"
-                        className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
-                      />
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleCreateGroup}
-                        disabled={isCreatingGroup || !newGroupName.trim()}
-                        className="text-[10px] uppercase tracking-wider"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Create group
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                )}
 
                 <div className="border-t border-border" />
 
@@ -263,7 +223,7 @@ export function GroupsPage() {
                     </div>
                   ) : (
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                      {isPremium ? "No groups yet. Create one or join with an invite code." : "No groups yet. Join with an invite code."}
+                      {isPremium ? "No groups yet. Create one." : "No groups yet."}
                     </p>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { ConvexError, v } from "convex/values"
+import { paginationOptsValidator, paginationResultValidator } from "convex/server"
 import { requireCurrentUser, requireGroupAdmin, requireGroupMember } from "./groupMembers"
 
 const playHistoryValidator = v.object({
@@ -93,6 +94,22 @@ export const listForUser = query({
       .withIndex("by_userId_createdAt", (q) => q.eq("userId", user._id))
       .order("desc")
       .take(limit)
+  },
+})
+
+export const listForUserPaginated = query({
+  args: {
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(playHistoryValidator),
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx)
+
+    return await ctx.db
+      .query("playHistory")
+      .withIndex("by_userId_createdAt", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .paginate(args.paginationOpts)
   },
 })
 

@@ -1,13 +1,20 @@
-import { useState, type FormEvent } from "react"
-import { useNavigate } from "react-router-dom"
+import { useEffect, useRef, useState, type FormEvent } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { authClient } from "@/lib/auth-client"
+import { normalizeReturnTo } from "@/lib/auth-redirect"
 
-export function AccountPage() {
+interface AccountPageProps {
+  mode?: "page" | "inline"
+  onAuthSuccess?: () => void
+}
+export function AccountPage({ mode = "page", onAuthSuccess }: AccountPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const session = authClient.useSession()
+  const hasHandledAuthRedirect = useRef(false)
 
   const [authMode, setAuthMode] = useState<"sign-in" | "sign-up" | "forgot-password">("sign-in")
   const [authEmail, setAuthEmail] = useState("")
@@ -19,20 +26,40 @@ export function AccountPage() {
   const [authSuccess, setAuthSuccess] = useState<string | null>(null)
   const hasIdentifier = authIdentifier.trim().length > 0
 
+  useEffect(() => {
+    if (!session.data) return
+    if (onAuthSuccess) {
+      if (hasHandledAuthRedirect.current) return
+      hasHandledAuthRedirect.current = true
+      onAuthSuccess()
+      return
+    }
+    if (mode === "page") {
+      if (hasHandledAuthRedirect.current) return
+      hasHandledAuthRedirect.current = true
+      const params = new URLSearchParams(location.search)
+      const returnTo = normalizeReturnTo(params.get("returnTo"))
+      navigate(returnTo, { replace: true })
+    }
+  }, [location.search, mode, navigate, onAuthSuccess, session.data])
+
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault()
     setAuthLoading(true)
     setAuthError(null)
     const identifier = authIdentifier.trim()
     try {
+      const returnTo = normalizeReturnTo(new URLSearchParams(location.search).get("returnTo"))
       const result = identifier.includes("@")
         ? await authClient.signIn.email({
             email: identifier,
             password: authPassword,
+            callbackURL: returnTo,
           })
         : await authClient.signIn.username({
             username: identifier,
             password: authPassword,
+            callbackURL: returnTo,
           })
       if (result.error) {
         setAuthError(result.error.message ?? "Sign in failed")
@@ -50,11 +77,13 @@ export function AccountPage() {
     setAuthError(null)
     setAuthSuccess(null)
     try {
+      const returnTo = normalizeReturnTo(new URLSearchParams(location.search).get("returnTo"))
       const result = await authClient.signUp.email({
         email: authEmail,
         password: authPassword,
         name: authName.trim(),
         username: authName.trim(),
+        callbackURL: returnTo,
       })
       if (result.error) {
         setAuthError(result.error.message ?? "Sign up failed")
@@ -74,10 +103,11 @@ export function AccountPage() {
     setAuthError(null)
     setAuthSuccess(null)
     try {
+      const returnTo = normalizeReturnTo(new URLSearchParams(location.search).get("returnTo"))
       const email = authEmail.trim()
       const result = await authClient.requestPasswordReset({
         email,
-        redirectTo: `${window.location.origin}/reset-password?email=${encodeURIComponent(email)}`,
+        redirectTo: `${window.location.origin}/reset-password?email=${encodeURIComponent(email)}&returnTo=${encodeURIComponent(returnTo)}`,
       })
       if (result.error) {
         setAuthError(result.error.message ?? "Request failed")
@@ -91,7 +121,145 @@ export function AccountPage() {
     }
   }
 
+  const authForm = (
+    <PanelContainer className="w-full" enableLines={mode !== "inline"}>
+      <div className="p-6 flex flex-col gap-4">
+        <h1 className="text-xl uppercase tracking-widest text-foreground">
+          {authMode === "sign-in" && "Sign In"}
+          {authMode === "sign-up" && "Create Account"}
+          {authMode === "forgot-password" && "Reset Password"}
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          {authMode === "forgot-password" && "Enter your email to receive a reset link."}
+        </p>
+
+        {authError && (
+          <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
+            {authError}
+          </div>
+        )}
+        {authSuccess && (
+          <div className="border border-foreground/20 text-foreground text-[10px] uppercase tracking-wider px-3 py-2">
+            {authSuccess}
+          </div>
+        )}
+
+        <form
+          onSubmit={
+            authMode === "sign-in"
+              ? handleSignIn
+              : authMode === "sign-up"
+                ? handleSignUp
+                : handleForgotPassword
+          }
+          className="flex flex-col gap-3"
+        >
+          {authMode === "sign-in" && (
+            <input
+              type="text"
+              placeholder="Email or username"
+              required
+              value={authIdentifier}
+              onChange={(e) => setAuthIdentifier(e.target.value)}
+              className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+            />
+          )}
+          {authMode === "sign-up" && (
+            <input
+              type="text"
+              placeholder="Username"
+              required
+              value={authName}
+              onChange={(e) => setAuthName(e.target.value)}
+              className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+            />
+          )}
+          {authMode !== "sign-in" && (
+            <input
+              type="email"
+              placeholder="Email"
+              required
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+            />
+          )}
+          {authMode !== "forgot-password" && (
+            <input
+              type="password"
+              placeholder="Password"
+              required
+              minLength={8}
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
+            />
+          )}
+          <Button
+            type="submit"
+            disabled={authLoading || (authMode === "sign-in" && !hasIdentifier)}
+            className="w-full"
+          >
+            {authLoading
+              ? "Loading..."
+              : authMode === "sign-in"
+                ? "Sign In"
+                : authMode === "sign-up"
+                  ? "Create Account"
+                  : "Send Reset Link"}
+          </Button>
+        </form>
+
+        <div className="flex flex-col gap-2 text-center">
+          {authMode === "sign-in" && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("sign-up")
+                  setAuthError(null)
+                  setAuthSuccess(null)
+                }}
+                className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Create account
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode("forgot-password")
+                  setAuthError(null)
+                  setAuthSuccess(null)
+                }}
+                className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
+              >
+                Forgot password?
+              </button>
+            </>
+          )}
+          {(authMode === "sign-up" || authMode === "forgot-password") && (
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("sign-in")
+                setAuthError(null)
+                setAuthSuccess(null)
+              }}
+              className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Back to sign in
+            </button>
+          )}
+        </div>
+
+      </div>
+    </PanelContainer>
+  )
+
   if (!session.data) {
+    if (mode === "inline") {
+      return authForm
+    }
     return (
       <div
         className="min-h-dvh flex flex-col select-none"
@@ -104,138 +272,7 @@ export function AccountPage() {
         <main className="flex-1 flex flex-col relative overflow-y-auto">
           <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
             <PageBackButton to="/" />
-            <PanelContainer className="w-full">
-              <div className="p-6 flex flex-col gap-4">
-                <h1 className="text-xl uppercase tracking-widest text-foreground">
-                  {authMode === "sign-in" && "Sign In"}
-                  {authMode === "sign-up" && "Create Account"}
-                  {authMode === "forgot-password" && "Reset Password"}
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {authMode === "forgot-password" && "Enter your email to receive a reset link."}
-                </p>
-
-                {authError && (
-                  <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
-                    {authError}
-                  </div>
-                )}
-                {authSuccess && (
-                  <div className="border border-foreground/20 text-foreground text-[10px] uppercase tracking-wider px-3 py-2">
-                    {authSuccess}
-                  </div>
-                )}
-
-                <form
-                  onSubmit={
-                    authMode === "sign-in"
-                      ? handleSignIn
-                      : authMode === "sign-up"
-                        ? handleSignUp
-                        : handleForgotPassword
-                  }
-                  className="flex flex-col gap-3"
-                >
-                  {authMode === "sign-in" && (
-                    <input
-                      type="text"
-                      placeholder="Email or username"
-                      required
-                      value={authIdentifier}
-                      onChange={(e) => setAuthIdentifier(e.target.value)}
-                      className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                    />
-                  )}
-                  {authMode === "sign-up" && (
-                    <input
-                      type="text"
-                      placeholder="Username"
-                      required
-                      value={authName}
-                      onChange={(e) => setAuthName(e.target.value)}
-                      className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                    />
-                  )}
-                  {authMode !== "sign-in" && (
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      required
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                    />
-                  )}
-                  {authMode !== "forgot-password" && (
-                    <input
-                      type="password"
-                      placeholder="Password"
-                      required
-                      minLength={8}
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full bg-background border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50"
-                    />
-                  )}
-                  <Button
-                    type="submit"
-                    disabled={authLoading || (authMode === "sign-in" && !hasIdentifier)}
-                    className="w-full"
-                  >
-                    {authLoading
-                      ? "Loading..."
-                      : authMode === "sign-in"
-                        ? "Sign In"
-                        : authMode === "sign-up"
-                          ? "Create Account"
-                          : "Send Reset Link"}
-                  </Button>
-                </form>
-
-                <div className="flex flex-col gap-2 text-center">
-                  {authMode === "sign-in" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthMode("sign-up")
-                          setAuthError(null)
-                          setAuthSuccess(null)
-                        }}
-                        className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        Create account
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAuthMode("forgot-password")
-                          setAuthError(null)
-                          setAuthSuccess(null)
-                        }}
-                        className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                      >
-                        Forgot password?
-                      </button>
-                    </>
-                  )}
-                  {(authMode === "sign-up" || authMode === "forgot-password") && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode("sign-in")
-                        setAuthError(null)
-                        setAuthSuccess(null)
-                      }}
-                      className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Back to sign in
-                    </button>
-                  )}
-                </div>
-
-              </div>
-            </PanelContainer>
+            {authForm}
           </div>
         </main>
       </div>
@@ -253,7 +290,7 @@ export function AccountPage() {
     >
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
-          <PageBackButton to="/" />
+          {mode === "page" && <PageBackButton to="/" />}
           {/* Left column - Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h1

@@ -15,13 +15,12 @@ export const sendEmail = action({
     const resendApiKey = process.env.RESEND_API_KEY
     const fromEmail = process.env.EMAIL_FROM
 
-    if (!resendApiKey || !fromEmail) {
-      console.log(`[DEV EMAIL] To: ${args.to}\nSubject: ${args.subject}\n${args.html}`)
-      const urlMatch = args.html.match(/href="([^"]+)"/)
-      if (urlMatch) {
-        console.log(`[DEV EMAIL LINK] ${urlMatch[1]}`)
-      }
-      return null
+    if (!resendApiKey) {
+      throw new Error("RESEND_API_KEY is required to send emails.")
+    }
+
+    if (!fromEmail) {
+      throw new Error("EMAIL_FROM is required to send emails.")
     }
 
     const resend = new Resend(resendApiKey)

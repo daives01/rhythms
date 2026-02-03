@@ -91,11 +91,7 @@ const calculateBPMColor = (bpm: number): string => {
 }
 
 function getShareUrl(challenge: string): string {
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-  const baseUrl = isLocalhost
-    ? `${window.location.protocol}//${window.location.host}`
-    : "https://rhythms.daniel-ives.com"
-  return `${baseUrl}?challenge=${challenge}`
+  return `${window.location.origin}?challenge=${challenge}`
 }
 
 interface LocationState {

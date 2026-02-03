@@ -78,11 +78,7 @@ export function InviteManager({ groupId }: InviteManagerProps) {
   }
 
   const getInviteLink = (code: string): string => {
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-    const baseUrl = isLocalhost
-      ? `${window.location.protocol}//${window.location.host}`
-      : "https://rhythms.daniel-ives.com"
-    return `${baseUrl}/join?code=${code}`
+    return `${window.location.origin}/join?code=${code}`
   }
 
   const handleCopy = async (inviteId: string, code: string) => {

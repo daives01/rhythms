@@ -16,6 +16,11 @@ export function PanelContainer({ children, className, style, enableLines = true 
   const [bounds, setBounds] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null)
 
   useLayoutEffect(() => {
+    if (!enableLines) {
+      setBounds(null)
+      return
+    }
+
     const el = ref.current
     if (!el) return
 
@@ -33,12 +38,16 @@ export function PanelContainer({ children, className, style, enableLines = true 
     window.addEventListener("resize", updateBounds)
     const ro = new ResizeObserver(updateBounds)
     ro.observe(el)
+    const root = document.documentElement
+    const rootObserver = new ResizeObserver(updateBounds)
+    rootObserver.observe(root)
 
     return () => {
       window.removeEventListener("resize", updateBounds)
       ro.disconnect()
+      rootObserver.disconnect()
     }
-  }, [])
+  }, [enableLines])
 
   return (
     <div ref={ref} className={cn("relative", className)} style={style}>

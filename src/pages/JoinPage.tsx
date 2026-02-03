@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { useState } from "react"
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom"
 import { useMutation } from "convex/react"
 import { Users } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
@@ -7,35 +7,29 @@ import { Button } from "@/components/ui/button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
 import { authClient } from "@/lib/auth-client"
 import { PageBackButton } from "@/components/ui/page-back-button"
+import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import { api } from "../../convex/_generated/api"
 
 export function JoinPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const codeParam = searchParams.get("code")
   const session = authClient.useSession()
 
-  const [inviteCode, setInviteCode] = useState(codeParam ?? "")
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const redeemInvite = useMutation(api.groups.redeemInvite)
 
-  // Pre-fill code from URL
-  useEffect(() => {
-    if (codeParam) {
-      setInviteCode(codeParam)
-    }
-  }, [codeParam])
-
   const handleRedeem = async () => {
-    if (!inviteCode.trim()) return
+    if (!codeParam?.trim()) return
     setErrorMessage(null)
     setSuccessMessage(null)
     setIsRedeeming(true)
     try {
-      const result = await redeemInvite({ code: inviteCode.trim().toUpperCase() })
+      const result = await redeemInvite({ code: codeParam.trim().toUpperCase() })
       setSuccessMessage("You've joined the group!")
       // Redirect to group detail after a short delay
       setTimeout(() => {
@@ -84,7 +78,16 @@ export function JoinPage() {
                   </div>
                 )}
 
-                <Button onClick={() => navigate("/account")} className="w-full">
+                <Button
+                  onClick={() => {
+                    const returnTo = getReturnToFromLocation(location)
+                    navigate({
+                      pathname: location.pathname,
+                      search: buildAuthSearch(location.search, returnTo),
+                    })
+                  }}
+                  className="w-full"
+                >
                   Sign In or Create Account
                 </Button>
 
@@ -107,7 +110,7 @@ export function JoinPage() {
     >
       <main className="flex-1 flex flex-col relative overflow-y-auto">
         <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
-          <PageBackButton to="/account" />
+          <PageBackButton to="/" />
           <PanelContainer className="w-full">
             <div className="p-6 flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -115,9 +118,15 @@ export function JoinPage() {
                 <h1 className="text-xl uppercase tracking-widest text-foreground">Join Group</h1>
               </div>
 
-              <p className="text-sm text-muted-foreground">
-                Enter an invite code to join a rhythm group.
-              </p>
+              {codeParam ? (
+                <p className="text-sm text-muted-foreground">
+                  You've been invited to join a rhythm group.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  This page only works with a valid invite link.
+                </p>
+              )}
 
               {errorMessage && (
                 <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
@@ -131,24 +140,22 @@ export function JoinPage() {
                 </div>
               )}
 
-              <div className="flex flex-col gap-3">
-                <input
-                  aria-label="Invite code"
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  placeholder="ENTER INVITE CODE"
-                  autoCapitalize="characters"
-                  className="w-full bg-background border border-border px-3 py-3 text-sm text-foreground text-center tracking-wider placeholder:text-muted-foreground/50"
-                />
+              {codeParam && (
+                <div className="border border-border p-3">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Invite code</p>
+                  <code className="text-lg text-foreground">{codeParam.toUpperCase()}</code>
+                </div>
+              )}
+
+              {codeParam && (
                 <Button
                   onClick={handleRedeem}
-                  disabled={isRedeeming || !inviteCode.trim()}
+                  disabled={isRedeeming}
                   className="w-full"
                 >
                   {isRedeeming ? "Joining..." : "Join Group"}
                 </Button>
-              </div>
+              )}
 
             </div>
           </PanelContainer>
