@@ -12,6 +12,7 @@ import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -227,6 +228,7 @@ export function Game() {
         {/* Challenge Landing Page */}
         {showChallengeLanding && challengeData && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+            <PageBackButton to="/" />
             {/* Left column: Title + Challenge Toggle */}
             <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center animate-fade-in-up">
               <h1

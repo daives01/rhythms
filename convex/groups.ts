@@ -272,25 +272,18 @@ export const listMembers = query({
       .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
       .collect()
 
-    const users = await Promise.all(
-      memberships.map((membership) => ctx.db.get(membership.userId))
-    )
-
-    return memberships.map((membership, index) => {
-      const user = users[index]
-      return {
-        membership,
-        user: {
-          _id: membership.userId,
-          _creationTime: user?._creationTime ?? membership._creationTime,
-          authUserId: user?.authUserId ?? membership.userAuthUserId ?? "",
-          email: user?.email ?? membership.userEmail,
-          name: user?.name ?? membership.userName,
-          premium: user?.premium ?? membership.userPremium,
-          createdAt: user?.createdAt ?? membership.joinedAt,
-        },
-      }
-    })
+    return memberships.map((membership) => ({
+      membership,
+      user: {
+        _id: membership.userId,
+        _creationTime: membership._creationTime,
+        authUserId: membership.userAuthUserId ?? "",
+        email: membership.userEmail,
+        name: membership.userName,
+        premium: membership.userPremium,
+        createdAt: membership.joinedAt,
+      },
+    }))
   },
 })
 
@@ -418,12 +411,6 @@ export const getDetail = query({
       .unique()
 
     if (!membership) return null
-
-    const memberships = await ctx.db
-      .query("groupMembers")
-      .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
-      .collect()
-
     const now = Date.now()
     const challengeQuery = ctx.db
       .query("challenges")
@@ -435,7 +422,11 @@ export const getDetail = query({
     return {
       group,
       membership,
-      memberCount: memberships.length,
+      memberCount: await ctx.db
+        .query("groupMembers")
+        .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
+        .collect()
+        .then((results) => results.length),
       challenges: filteredChallenges,
     }
   },

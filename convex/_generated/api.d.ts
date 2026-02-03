@@ -10,6 +10,9 @@
 
 import type * as auth from "../auth.js";
 import type * as challenges from "../challenges.js";
+import type * as emails_ResetPasswordEmail from "../emails/ResetPasswordEmail.js";
+import type * as emails_VerifyEmail from "../emails/VerifyEmail.js";
+import type * as emails_emailStyles from "../emails/emailStyles.js";
 import type * as groupMembers from "../groupMembers.js";
 import type * as groups from "../groups.js";
 import type * as http from "../http.js";
@@ -26,6 +29,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   challenges: typeof challenges;
+  "emails/ResetPasswordEmail": typeof emails_ResetPasswordEmail;
+  "emails/VerifyEmail": typeof emails_VerifyEmail;
+  "emails/emailStyles": typeof emails_emailStyles;
   groupMembers: typeof groupMembers;
   groups: typeof groups;
   http: typeof http;

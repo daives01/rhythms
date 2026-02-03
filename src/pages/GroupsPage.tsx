@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useMutation, useQuery } from "convex/react"
-import { ArrowLeft, Plus, LogIn, Users } from "lucide-react"
+import { Plus, LogIn, Users } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
@@ -96,6 +97,7 @@ export function GroupsPage() {
       >
         <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+            <PageBackButton to="/" />
             {/* Left column - Title */}
             <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
               <h1
@@ -119,12 +121,6 @@ export function GroupsPage() {
                   >
                     Sign in
                   </Button>
-                  <button
-                    className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                    onClick={() => navigate("/")}
-                  >
-                    Back to play
-                  </button>
                 </div>
               </PanelContainer>
             </div>
@@ -145,6 +141,7 @@ export function GroupsPage() {
     >
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+          <PageBackButton to="/" />
           {/* Left column - Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h1
@@ -160,15 +157,6 @@ export function GroupsPage() {
 
           {/* Right column - Content */}
           <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <Button variant="ghost" onClick={() => navigate("/")}
-                className="text-[10px] uppercase tracking-wider"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </div>
-
             {errorMessage && (
               <div className="border border-destructive text-destructive text-[10px] uppercase tracking-wider px-3 py-2">
                 {errorMessage}

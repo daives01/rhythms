@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { authClient } from "@/lib/auth-client"
 
 export function AccountPage() {
@@ -74,9 +74,10 @@ export function AccountPage() {
     setAuthError(null)
     setAuthSuccess(null)
     try {
+      const email = authEmail.trim()
       const result = await authClient.requestPasswordReset({
-        email: authEmail,
-        redirectTo: `${window.location.origin}/reset-password`,
+        email,
+        redirectTo: `${window.location.origin}/reset-password?email=${encodeURIComponent(email)}`,
       })
       if (result.error) {
         setAuthError(result.error.message ?? "Request failed")
@@ -101,7 +102,8 @@ export function AccountPage() {
         }}
       >
         <main className="flex-1 flex flex-col relative overflow-y-auto">
-          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+            <PageBackButton to="/" />
             <PanelContainer className="w-full">
               <div className="p-6 flex flex-col gap-4">
                 <h1 className="text-xl uppercase tracking-widest text-foreground">
@@ -232,12 +234,6 @@ export function AccountPage() {
                   )}
                 </div>
 
-                <button
-                  className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                  onClick={() => navigate("/")}
-                >
-                  Back to play
-                </button>
               </div>
             </PanelContainer>
           </div>
@@ -257,6 +253,7 @@ export function AccountPage() {
     >
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
+          <PageBackButton to="/" />
           {/* Left column - Title */}
           <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center">
             <h1
@@ -272,15 +269,6 @@ export function AccountPage() {
 
           {/* Right column - Content */}
           <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
-            <div className="flex items-center justify-end">
-              <Button variant="ghost" onClick={() => navigate("/")}
-                className="text-[10px] uppercase tracking-wider"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </div>
-
             <PanelContainer>
               <div className="p-4 flex flex-col gap-4">
                 <div>

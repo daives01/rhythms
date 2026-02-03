@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useMutation } from "convex/react"
-import { ArrowLeft, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
 import { authClient } from "@/lib/auth-client"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { api } from "../../convex/_generated/api"
 
 export function JoinPage() {
@@ -63,7 +64,8 @@ export function JoinPage() {
         }}
       >
         <main className="flex-1 flex flex-col relative overflow-y-auto">
-          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+            <PageBackButton to="/" />
             <PanelContainer className="w-full">
               <div className="p-6 flex flex-col gap-4">
                 <div className="flex items-center gap-2">
@@ -86,12 +88,6 @@ export function JoinPage() {
                   Sign In or Create Account
                 </Button>
 
-                <button
-                  className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                  onClick={() => navigate("/")}
-                >
-                  Back to play
-                </button>
               </div>
             </PanelContainer>
           </div>
@@ -110,7 +106,8 @@ export function JoinPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-y-auto">
-        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+          <PageBackButton to="/account" />
           <PanelContainer className="w-full">
             <div className="p-6 flex flex-col gap-4">
               <div className="flex items-center gap-2">
@@ -153,13 +150,6 @@ export function JoinPage() {
                 </Button>
               </div>
 
-              <button
-                className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                onClick={() => navigate("/account")}
-              >
-                <ArrowLeft className="w-3 h-3 inline mr-1" />
-                Back to account
-              </button>
             </div>
           </PanelContainer>
         </div>

@@ -2,12 +2,14 @@ import { useState, type FormEvent } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { authClient } from "@/lib/auth-client"
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get("token")
+  const email = searchParams.get("email")
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -35,7 +37,21 @@ export function ResetPasswordPage() {
       if (result.error) {
         setError(result.error.message ?? "Reset failed")
       } else {
-        setSuccess(true)
+        if (!email) {
+          setError("Password reset, but we need your email to sign you in.")
+          setSuccess(true)
+          return
+        }
+        const signInResult = await authClient.signIn.email({
+          email,
+          password,
+        })
+        if (signInResult.error) {
+          setError(signInResult.error.message ?? "Sign in failed")
+          setSuccess(true)
+          return
+        }
+        navigate("/", { replace: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Reset failed")
@@ -55,19 +71,14 @@ export function ResetPasswordPage() {
         }}
       >
         <main className="flex-1 flex flex-col relative overflow-y-auto">
-          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+            <PageBackButton to="/account" />
             <PanelContainer className="w-full">
               <div className="p-6 flex flex-col gap-4">
                 <h1 className="text-xl uppercase tracking-widest text-foreground">Invalid Link</h1>
                 <p className="text-xs text-muted-foreground">
                   This password reset link is invalid or has expired.
                 </p>
-                <button
-                  className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => navigate("/account")}
-                >
-                  Back to sign in
-                </button>
               </div>
             </PanelContainer>
           </div>
@@ -87,15 +98,14 @@ export function ResetPasswordPage() {
         }}
       >
         <main className="flex-1 flex flex-col relative overflow-y-auto">
-          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+            <PageBackButton to="/account" />
             <PanelContainer className="w-full">
               <div className="p-6 flex flex-col gap-4">
                 <h1 className="text-xl uppercase tracking-widest text-foreground">Password Reset</h1>
-                <p className="text-xs text-muted-foreground">
-                  Your password has been reset successfully.
-                </p>
-                <Button onClick={() => navigate("/account")} className="w-full">
-                  Sign In
+                <p className="text-xs text-muted-foreground">{error ?? "Your password has been reset successfully."}</p>
+                <Button onClick={() => navigate("/")} className="w-full">
+                  Back to home
                 </Button>
               </div>
             </PanelContainer>
@@ -115,7 +125,8 @@ export function ResetPasswordPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-y-auto">
-        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full relative">
+          <PageBackButton to="/account" />
           <PanelContainer className="w-full">
             <div className="p-6 flex flex-col gap-4">
               <h1 className="text-xl uppercase tracking-widest text-foreground">New Password</h1>
@@ -153,12 +164,6 @@ export function ResetPasswordPage() {
                 </Button>
               </form>
 
-              <button
-                className="text-[10px] uppercase tracking-wider text-muted-foreground/50 hover:text-foreground transition-colors"
-                onClick={() => navigate("/account")}
-              >
-                Back to sign in
-              </button>
             </div>
           </PanelContainer>
         </div>

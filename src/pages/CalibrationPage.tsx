@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { CalibrationScreen } from "@/components/CalibrationScreen"
+import { PageBackButton } from "@/components/ui/page-back-button"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const CALIBRATION_HISTORY_KEY = "rhythm-calibration-history"
@@ -105,6 +106,7 @@ export function CalibrationPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
+        <PageBackButton to={-1} />
         <CalibrationScreen
           onComplete={handleComplete}
           onCancel={handleCancel}
