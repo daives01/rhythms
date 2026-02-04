@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server"
+import type { Id } from "./_generated/dataModel"
 import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator, paginationResultValidator } from "convex/server"
 import { requireCurrentUser, requireGroupAdmin, requireGroupMember } from "./groupMembers"
@@ -116,6 +117,7 @@ export const listForUserPaginated = query({
 export const listForChallenge = query({
   args: {
     challengeId: v.id("challenges"),
+    limit: v.optional(v.number()),
   },
   returns: v.array(
     v.object({
@@ -130,16 +132,15 @@ export const listForChallenge = query({
     }
     await requireGroupMember(ctx, challenge.groupId)
 
-    if (!challenge.leaderboard) {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Leaderboard disabled." })
-    }
+    const limit = Math.min(args.limit ?? 200, 500)
 
     const plays = await ctx.db
       .query("playHistory")
       .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
-      .collect()
+      .order("desc")
+      .take(limit)
 
-    const bestPlaysByUser = new Map<string, (typeof plays)[number]>()
+    const bestPlaysByUser = new Map<Id<"users">, (typeof plays)[number]>()
     for (const play of plays) {
       const existing = bestPlaysByUser.get(play.userId)
       if (!existing) {
@@ -151,15 +152,26 @@ export const listForChallenge = query({
       }
     }
 
+    const userIds = Array.from(bestPlaysByUser.keys())
+    const users = await Promise.all(userIds.map((userId) => ctx.db.get(userId)))
+    const usersById = new Map(
+      users
+        .filter((user): user is NonNullable<typeof user> => Boolean(user))
+        .map((user) => [user._id, user])
+    )
+
     return Array.from(bestPlaysByUser.values())
-      .map((play) => ({
-        play,
-        user: {
-          _id: play.userId,
-          name: play.userName,
-          email: play.userEmail,
-        },
-      }))
+      .map((play) => {
+        const user = usersById.get(play.userId)
+        return {
+          play,
+          user: {
+            _id: play.userId,
+            name: user?.name ?? play.userName,
+            email: user?.email ?? play.userEmail,
+          },
+        }
+      })
       .sort((a, b) => {
         if (b.play.score !== a.play.score) return b.play.score - a.play.score
         return b.play.createdAt - a.play.createdAt

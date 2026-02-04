@@ -14,7 +14,6 @@ const challengeValidator = v.object({
   difficulty: v.optional(v.string()),
   seed: v.optional(v.string()),
   tuplets: v.optional(v.boolean()),
-  leaderboard: v.boolean(),
   createdAt: v.number(),
 })
 
@@ -28,7 +27,6 @@ export const create = mutation({
     difficulty: v.optional(v.string()),
     seed: v.optional(v.string()),
     tuplets: v.optional(v.boolean()),
-    leaderboard: v.optional(v.boolean()),
   },
   returns: challengeValidator,
   handler: async (ctx, args) => {
@@ -43,7 +41,6 @@ export const create = mutation({
       difficulty: args.difficulty,
       seed: args.seed,
       tuplets: args.tuplets,
-      leaderboard: args.leaderboard ?? true,
       createdAt: Date.now(),
     })
     const challenge = await ctx.db.get(challengeId)
@@ -83,18 +80,17 @@ export const listForUser = query({
       .query("groupMembers")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect()
-    
-    const allChallenges = []
-    
-    for (const membership of memberships) {
-      const groupChallenges = await ctx.db
-        .query("challenges")
-        .withIndex("by_groupId_dueAt", (q) => q.eq("groupId", membership.groupId))
-        .collect()
-      allChallenges.push(...groupChallenges)
-    }
-    
-    return allChallenges
+
+    const challengesByGroup = await Promise.all(
+      memberships.map((membership) =>
+        ctx.db
+          .query("challenges")
+          .withIndex("by_groupId_dueAt", (q) => q.eq("groupId", membership.groupId))
+          .collect()
+      )
+    )
+
+    return challengesByGroup.flat()
   },
 })
 
@@ -120,7 +116,6 @@ export const update = mutation({
     tempo: v.optional(v.number()),
     difficulty: v.optional(v.string()),
     tuplets: v.optional(v.boolean()),
-    leaderboard: v.optional(v.boolean()),
   },
   returns: challengeValidator,
   handler: async (ctx, args) => {
@@ -137,7 +132,6 @@ export const update = mutation({
     if (args.tempo !== undefined) updates.tempo = args.tempo
     if (args.difficulty !== undefined) updates.difficulty = args.difficulty
     if (args.tuplets !== undefined) updates.tuplets = args.tuplets
-    if (args.leaderboard !== undefined) updates.leaderboard = args.leaderboard
 
     await ctx.db.patch(args.challengeId, updates)
     const updated = await ctx.db.get(args.challengeId)

@@ -52,7 +52,6 @@ export default defineSchema({
     difficulty: v.optional(v.string()),
     seed: v.optional(v.string()),
     tuplets: v.optional(v.boolean()),
-    leaderboard: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_groupId_dueAt", ["groupId", "dueAt"])

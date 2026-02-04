@@ -83,7 +83,6 @@ interface ChallengeEntry {
   difficulty?: string
   seed?: string
   tuplets?: boolean
-  leaderboard: boolean
   createdAt: number
 }
 
@@ -95,7 +94,6 @@ interface ChallengeFormProps {
     difficulty?: string
     seed?: string
     tuplets?: boolean
-    leaderboard: boolean
   }) => Promise<void>
   isSubmitting: boolean
   onSuccess: () => void
@@ -119,7 +117,6 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
   const [tempo, setTempo] = useState(120)
   const [difficulty, setDifficulty] = useState("medium")
   const [tupletsEnabled, setTupletsEnabled] = useState(false)
-  const [leaderboard, setLeaderboard] = useState(false)
   const [seedMode, setSeedMode] = useState<"random" | "history">("random")
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
   const [selectedSeed, setSelectedSeed] = useState<string | null>(null)
@@ -156,7 +153,6 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
       difficulty,
       seed: seedMode === "history" ? selectedSeed ?? undefined : undefined,
       tuplets: tupletsEnabled,
-      leaderboard,
     })
     
     onSuccess()
@@ -165,7 +161,6 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
     setTempo(120)
     setDifficulty("medium")
     setTupletsEnabled(false)
-    setLeaderboard(false)
     setSeedMode("random")
     setSelectedHistoryId(null)
     setSelectedSeed(null)
@@ -338,15 +333,6 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={leaderboard}
-          onChange={(e) => setLeaderboard(e.target.checked)}
-          className="w-4 h-4"
-        />
-        Enable leaderboard
-      </label>
       <Button
         type="submit"
         variant="secondary"
@@ -422,7 +408,7 @@ export function GroupDetailPage() {
   const activeChallenges = groupDetail?.challenges.filter((c) => c.dueAt >= now) ?? []
   const pastChallenges = groupDetail?.challenges.filter((c) => c.dueAt < now) ?? []
 
-  const handleStartChallenge = (challenge: ChallengeEntry) => {
+  const navigateToChallenge = (challenge: ChallengeEntry, options?: { unlockAudio?: boolean }) => {
     const difficultyValue = challenge.difficulty ? difficultyValueMap[challenge.difficulty] ?? 0.5 : 0.5
     const challengeTuplets = challenge.tuplets ?? includeTuplets
     const challengeData: ChallengeData = {
@@ -433,8 +419,15 @@ export function GroupDetailPage() {
       groupId: challenge.groupId,
       challengeId: challenge._id,
     }
+    if (options?.unlockAudio) {
+      transportEngine.unlockAudio()
+    }
     const encoded = encodeChallenge(challengeData)
     navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
+  }
+
+  const handleStartChallenge = (challenge: ChallengeEntry) => {
+    navigateToChallenge(challenge)
   }
 
   const handleCreateChallenge = async (data: {
@@ -444,7 +437,6 @@ export function GroupDetailPage() {
     difficulty?: string
     seed?: string
     tuplets?: boolean
-    leaderboard: boolean
   }) => {
     setErrorMessage(null)
     setIsCreatingChallenge(true)
@@ -457,7 +449,6 @@ export function GroupDetailPage() {
         difficulty: data.difficulty,
         seed: data.seed,
         tuplets: data.tuplets,
-        leaderboard: data.leaderboard,
       })
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to create challenge.")
@@ -622,21 +613,7 @@ export function GroupDetailPage() {
 
   const handleStartFromHub = () => {
     if (!selectedChallenge) return
-    const difficultyValue = selectedChallenge.difficulty
-      ? difficultyValueMap[selectedChallenge.difficulty] ?? 0.5
-      : 0.5
-    const challengeTuplets = selectedChallenge.tuplets ?? includeTuplets
-    const challengeData: ChallengeData = {
-      seed: selectedChallenge.seed ?? generateSeed(),
-      bpm: selectedChallenge.tempo ?? 120,
-      difficulty: difficultyValue,
-      tuplets: challengeTuplets,
-      groupId: selectedChallenge.groupId,
-      challengeId: selectedChallenge._id,
-    }
-    transportEngine.unlockAudio()
-    const encoded = encodeChallenge(challengeData)
-    navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
+    navigateToChallenge(selectedChallenge, { unlockAudio: true })
   }
 
   const locationState = location.state as { score?: GameScore; finalScore?: number } | null
@@ -1023,13 +1000,7 @@ export function GroupDetailPage() {
             <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
               <PanelContainer enableLines>
                 <div className="p-4 flex flex-col gap-4">
-                  {selectedChallenge.leaderboard ? (
-                    <ChallengeLeaderboard challengeId={selectedChallenge._id} />
-                  ) : (
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                      Leaderboard is disabled for this challenge.
-                    </p>
-                  )}
+                  <ChallengeLeaderboard challengeId={selectedChallenge._id} />
                   <div className="border-t border-border pt-4">
                     <UserChallengeCompletions challengeId={selectedChallenge._id} />
                   </div>

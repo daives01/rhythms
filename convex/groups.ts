@@ -48,7 +48,6 @@ const challengeValidator = v.object({
   difficulty: v.optional(v.string()),
   seed: v.optional(v.string()),
   tuplets: v.optional(v.boolean()),
-  leaderboard: v.boolean(),
   createdAt: v.number(),
 })
 
