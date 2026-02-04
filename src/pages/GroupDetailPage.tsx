@@ -1,7 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom"
 import { useMutation, useQuery, useConvex } from "convex/react"
-import { CalendarClock, Plus, UserPlus, UserCog, ChevronUp, ChevronDown, Trophy } from "lucide-react"
+import { CalendarClock, Plus, UserPlus, UserCog, ChevronUp, ChevronDown, Trophy, Gauge, Signal, Volume2, Pencil } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
@@ -20,6 +20,10 @@ import { InviteManager } from "@/components/groups/InviteManager"
 import { MemberManager } from "@/components/groups/MemberManager"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
+import { Slider } from "@/components/ui/slider"
+import { AmpSwitch } from "@/components/ui/amp-switch"
+import { SoundboardButton } from "@/components/ui/soundboard-button"
+import { PlayButton } from "@/components/ui/play-button"
 import {
   Popover,
   PopoverContent,
@@ -27,13 +31,47 @@ import {
 } from "@/components/ui/popover"
 
 const SETTINGS_KEY = "rhythm-settings"
+const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 
-function loadTupletsSetting(): boolean {
+interface StoredSettings {
+  bpm: number
+  difficultyValue: number
+  playAlongVolume: number
+  groupMode: boolean
+  includeTuplets: boolean
+}
+
+const DEFAULT_SETTINGS: StoredSettings = {
+  bpm: 120,
+  difficultyValue: 0.5,
+  playAlongVolume: 0.5,
+  groupMode: false,
+  includeTuplets: false,
+}
+
+function loadSettings(): StoredSettings {
   try {
     const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return false
+    if (!stored) return DEFAULT_SETTINGS
     const parsed = JSON.parse(stored)
-    return parsed.includeTuplets ?? false
+    return { ...DEFAULT_SETTINGS, ...parsed }
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+function saveSettings(settings: Partial<StoredSettings>): void {
+  try {
+    const current = loadSettings()
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
+  } catch {
+    // ignore
+  }
+}
+
+function hasCalibrated(): boolean {
+  try {
+    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
   } catch {
     return false
   }
@@ -47,9 +85,54 @@ function formatShortDate(timestamp: number): string {
   })
 }
 
+function formatShortDateTime(timestamp: number): string {
+  const dateLabel = formatShortDate(timestamp)
+  const timeLabel = new Date(timestamp).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+  return `${dateLabel} at ${timeLabel}`
+}
+
+function formatLocalDateTime(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0")
+  const year = date.getFullYear()
+  const month = pad(date.getMonth() + 1)
+  const day = pad(date.getDate())
+  const hours = pad(date.getHours())
+  const minutes = pad(date.getMinutes())
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
 function formatDifficultyLabel(value?: string | null): string {
   if (!value) return "Any"
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+const getDifficultyFromValue = (v: number): "easy" | "medium" | "hard" => {
+  if (v < 0.33) return "easy"
+  if (v < 0.67) return "medium"
+  return "hard"
+}
+
+const calculateBPMColor = (bpm: number): string => {
+  const minBpm = 60
+  const maxBpm = 180
+  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
+
+  if (normalized <= 0.5) {
+    const p = normalized / 0.5
+    const r = Math.round(52 + p * (251 - 52))
+    const g = Math.round(211 + p * (191 - 211))
+    const b = Math.round(153 + p * (36 - 153))
+    return `rgb(${r}, ${g}, ${b})`
+  }
+
+  const p = (normalized - 0.5) / 0.5
+  const r = Math.round(251 + p * (248 - 251))
+  const g = Math.round(191 + p * (113 - 191))
+  const b = Math.round(36 + p * (113 - 36))
+  return `rgb(${r}, ${g}, ${b})`
 }
 
 function getDueStatus(dueAt: number): { text: string; isPast: boolean } {
@@ -129,8 +212,8 @@ function ChallengeForm({ onSubmit, isSubmitting, onSuccess, history }: Challenge
   const handleQuickDue = (days: number) => {
     const date = new Date()
     date.setDate(date.getDate() + days)
-    date.setHours(18, 0, 0, 0)
-    setDueAt(date.toISOString().slice(0, 16))
+    date.setHours(23, 59, 0, 0)
+    setDueAt(formatLocalDateTime(date))
   }
 
   const handleSelectHistory = (entry: PlayHistoryEntry) => {
@@ -396,12 +479,42 @@ export function GroupDetailPage() {
   const [editingChallenge, setEditingChallenge] = useState<ChallengeEntry | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [editDueAt, setEditDueAt] = useState("")
-  const [editTempo, setEditTempo] = useState(120)
-  const [editDifficulty, setEditDifficulty] = useState("medium")
-  const [editTuplets, setEditTuplets] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  const includeTuplets = loadTupletsSetting()
+  const [bpm, setBpm] = useState(() => loadSettings().bpm)
+  const [difficultyValue, setDifficultyValue] = useState(() => loadSettings().difficultyValue)
+  const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
+  const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
+  const [includeTuplets, setIncludeTuplets] = useState(() => loadSettings().includeTuplets)
+  const [isCalibrated] = useState(hasCalibrated)
+  const [isLeaderboardModalOpen, setIsLeaderboardModalOpen] = useState(false)
+  const [leaderboardChallengeId, setLeaderboardChallengeId] = useState<Id<"challenges"> | null>(null)
+  const [isCompletionsModalOpen, setIsCompletionsModalOpen] = useState(false)
+  const [completionsChallengeId, setCompletionsChallengeId] = useState<Id<"challenges"> | null>(null)
+  const [timeTick, setTimeTick] = useState(0)
+
+  const difficulty = getDifficultyFromValue(difficultyValue)
+
+  useEffect(() => {
+    saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
+  }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
+
+  useEffect(() => {
+    if (!groupDetail?.challenges?.length) return
+    const nextDueAt = groupDetail.challenges
+      .map((challenge) => challenge.dueAt)
+      .filter((dueAt) => dueAt > Date.now())
+      .sort((a, b) => a - b)[0]
+    if (!nextDueAt) return
+
+    const delay = Math.max(nextDueAt - Date.now(), 0)
+    const timer = window.setTimeout(() => {
+      setTimeTick((value) => value + 1)
+    }, delay)
+
+    return () => window.clearTimeout(timer)
+  }, [groupDetail?.challenges, timeTick])
+
   const isAdmin = groupDetail?.membership.role === "admin"
 
   const now = Date.now()
@@ -409,12 +522,14 @@ export function GroupDetailPage() {
   const pastChallenges = groupDetail?.challenges.filter((c) => c.dueAt < now) ?? []
 
   const navigateToChallenge = (challenge: ChallengeEntry, options?: { unlockAudio?: boolean }) => {
-    const difficultyValue = challenge.difficulty ? difficultyValueMap[challenge.difficulty] ?? 0.5 : 0.5
+    const challengeDifficulty = challenge.difficulty
+      ? difficultyValueMap[challenge.difficulty] ?? 0.5
+      : difficultyValue
     const challengeTuplets = challenge.tuplets ?? includeTuplets
     const challengeData: ChallengeData = {
       seed: challenge.seed ?? generateSeed(),
-      bpm: challenge.tempo ?? 120,
-      difficulty: difficultyValue,
+      bpm: challenge.tempo ?? bpm,
+      difficulty: challengeDifficulty,
       tuplets: challengeTuplets,
       groupId: challenge.groupId,
       challengeId: challenge._id,
@@ -427,7 +542,17 @@ export function GroupDetailPage() {
   }
 
   const handleStartChallenge = (challenge: ChallengeEntry) => {
-    navigateToChallenge(challenge)
+    navigate(`/groups/${groupId}?challenge=${challenge._id}`)
+  }
+
+  const handleOpenLeaderboard = (challengeId: Id<"challenges">) => {
+    setLeaderboardChallengeId(challengeId)
+    setIsLeaderboardModalOpen(true)
+  }
+
+  const handleOpenCompletions = (challengeId: Id<"challenges">) => {
+    setCompletionsChallengeId(challengeId)
+    setIsCompletionsModalOpen(true)
   }
 
   const handleCreateChallenge = async (data: {
@@ -461,10 +586,7 @@ export function GroupDetailPage() {
   const startEditing = (challenge: ChallengeEntry) => {
     setEditingChallenge(challenge)
     setEditTitle(challenge.title)
-    setEditDueAt(new Date(challenge.dueAt).toISOString().slice(0, 16))
-    setEditTempo(challenge.tempo ?? 120)
-    setEditDifficulty(challenge.difficulty ?? "medium")
-    setEditTuplets(challenge.tuplets ?? false)
+    setEditDueAt(formatLocalDateTime(new Date(challenge.dueAt)))
   }
 
   const cancelEditing = () => {
@@ -480,9 +602,6 @@ export function GroupDetailPage() {
         challengeId: editingChallenge._id,
         title: editTitle.trim(),
         dueAt: new Date(editDueAt).getTime(),
-        tempo: editTempo,
-        difficulty: editDifficulty,
-        tuplets: editTuplets,
       })
       setEditingChallenge(null)
     } catch (error) {
@@ -504,6 +623,37 @@ export function GroupDetailPage() {
       setErrorMessage(error instanceof Error ? error.message : "Failed to delete challenge.")
     }
   }
+
+  const selectedChallenge =
+    challengeId && challengeDetail?.groupId === groupId
+      ? challengeDetail
+      : null
+  const showChallengeHub = Boolean(selectedChallenge)
+
+  const handleStartFromHub = () => {
+    if (!selectedChallenge) return
+    navigateToChallenge(selectedChallenge, { unlockAudio: true })
+  }
+
+  const locationState = location.state as { score?: GameScore; finalScore?: number } | null
+  const lastScore = locationState?.finalScore
+    ?? (locationState?.score
+      ? Math.round(locationState.score.totalHits)
+      : null)
+
+  useEffect(() => {
+    if (!selectedChallenge) return
+    setGroupMode(false)
+    if (selectedChallenge.tempo !== null && selectedChallenge.tempo !== undefined) {
+      setBpm(selectedChallenge.tempo)
+    }
+    if (selectedChallenge.difficulty) {
+      setDifficultyValue(difficultyValueMap[selectedChallenge.difficulty] ?? 0.5)
+    }
+    if (selectedChallenge.tuplets !== null && selectedChallenge.tuplets !== undefined) {
+      setIncludeTuplets(selectedChallenge.tuplets)
+    }
+  }, [selectedChallenge])
 
   if (session.isPending || (session.data && !isUserReady)) {
     return <AuthLoading label="Loading..." />
@@ -605,23 +755,6 @@ export function GroupDetailPage() {
     )
   }
 
-  const selectedChallenge =
-    challengeId && challengeDetail?.groupId === groupId
-      ? challengeDetail
-      : null
-  const showChallengeHub = Boolean(selectedChallenge)
-
-  const handleStartFromHub = () => {
-    if (!selectedChallenge) return
-    navigateToChallenge(selectedChallenge, { unlockAudio: true })
-  }
-
-  const locationState = location.state as { score?: GameScore; finalScore?: number } | null
-  const lastScore = locationState?.finalScore
-    ?? (locationState?.score
-      ? Math.round(locationState.score.totalHits)
-      : null)
-
   return (
     <div
       className="min-h-dvh flex flex-col select-none"
@@ -709,8 +842,33 @@ export function GroupDetailPage() {
                               groupCompletions?.some((entry) => entry.challengeId === challenge._id)
                             )
                             return (
-                              <div key={challenge._id} className="border border-border p-3 flex flex-col gap-3">
-                                <div className="flex items-start justify-between">
+                              <div
+                                key={challenge._id}
+                                onClick={() => handleStartChallenge(challenge)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault()
+                                    handleStartChallenge(challenge)
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                className="relative border border-border p-3 flex flex-col gap-4 text-left hover:border-foreground/40 transition-colors md:flex-row md:items-center"
+                              >
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    aria-label="Edit challenge"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      startEditing(challenge)
+                                    }}
+                                    className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <div className="flex flex-col gap-3 md:w-1/2">
                                   <div>
                                     <p className="text-sm text-foreground uppercase tracking-wide">
                                       {challenge.title}
@@ -719,61 +877,21 @@ export function GroupDetailPage() {
                                       <p className="text-[10px] text-muted-foreground/60 mt-1">{challenge.description}</p>
                                     )}
                                   </div>
-                                  {isAdmin && (
-                                    <button
-                                      type="button"
-                                      onClick={() => startEditing(challenge)}
-                                      className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
-                                    >
-                                      Edit
-                                    </button>
-                                  )}
+                                  <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
+                                    <span className={cn(
+                                      "flex items-center gap-1",
+                                      dueStatus.isPast ? "text-destructive" : ""
+                                    )}>
+                                      <CalendarClock className="w-3 h-3" />
+                                      {dueStatus.text}
+                                    </span>
+                                    {hasCompleted && (
+                                      <span className="text-emerald-400">Completed</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
-                                  <span className={cn(
-                                    "flex items-center gap-1",
-                                    dueStatus.isPast ? "text-destructive" : ""
-                                  )}>
-                                    <CalendarClock className="w-3 h-3" />
-                                    {dueStatus.text}
-                                  </span>
-                                  <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
-                                  <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                                  <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
-                                  {hasCompleted && (
-                                    <span className="text-emerald-400">Completed</span>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleStartChallenge(challenge)}
-                                    className="text-[10px] uppercase tracking-wider"
-                                  >
-                                    Start challenge
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onMouseEnter={() => {
-                                      if (session.data) {
-                                        void convex.query(api.challenges.get, {
-                                          challengeId: challenge._id,
-                                        })
-                                      }
-                                    }}
-                                    onFocus={() => {
-                                      if (session.data) {
-                                        void convex.query(api.challenges.get, {
-                                          challengeId: challenge._id,
-                                        })
-                                      }
-                                    }}
-                                    onClick={() => navigate(`/groups/${groupId}?challenge=${challenge._id}`)}
-                                    className="text-[10px] uppercase tracking-wider"
-                                  >
-                                    View details
-                                  </Button>
+                                <div className="md:w-1/2 md:border-l md:border-border md:pl-4">
+                                  <ChallengeLeaderboard challengeId={challenge._id} limit={3} />
                                 </div>
                               </div>
                             )
@@ -824,112 +942,71 @@ export function GroupDetailPage() {
                   {showPastChallenges && pastChallenges.length > 0 && (
                     <div className="max-h-[320px] overflow-y-auto pr-1">
                       <div className="grid gap-2">
-                          {pastChallenges.map((challenge) => (
-                            <div key={challenge._id} className="border border-border p-3 flex flex-col gap-2 opacity-60">
-                              <div className="flex items-start justify-between">
-                                <p className="text-sm text-foreground uppercase tracking-wide">{challenge.title}</p>
-                                {isAdmin && (
+                        {pastChallenges.map((challenge) => {
+                          const dueStatus = getDueStatus(challenge.dueAt)
+                          const hasCompleted = Boolean(
+                            groupCompletions?.some((entry) => entry.challengeId === challenge._id)
+                          )
+                          return (
+                            <div
+                              key={challenge._id}
+                              className="relative border border-border p-3 flex flex-col gap-4 text-left md:flex-row md:items-center opacity-60"
+                            >
+                              {isAdmin && (
                                 <button
                                   type="button"
-                                  onClick={() => startEditing(challenge)}
-                                  className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                                  aria-label="Edit challenge"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    startEditing(challenge)
+                                  }}
+                                  className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
                                 >
-                                  Edit
+                                  <Pencil className="w-3.5 h-3.5" />
                                 </button>
                               )}
+                              <div className="flex flex-col gap-3 md:w-1/2">
+                                <div>
+                                  <p className="text-sm text-foreground uppercase tracking-wide">
+                                    {challenge.title}
+                                  </p>
+                                  {challenge.description && (
+                                    <p className="text-[10px] text-muted-foreground/60 mt-1">{challenge.description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
+                                  <span className={cn(
+                                    "flex items-center gap-1",
+                                    dueStatus.isPast ? "text-destructive" : ""
+                                  )}>
+                                    <CalendarClock className="w-3 h-3" />
+                                    {dueStatus.text}
+                                  </span>
+                                  {hasCompleted && (
+                                    <span className="text-emerald-400">Completed</span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 flex-wrap">
-                                <span className="text-destructive">Past due</span>
-                                <span>Ended {formatShortDate(challenge.dueAt)}</span>
-                                <span>{challenge.tempo ? `${challenge.tempo} bpm` : "Any tempo"}</span>
-                                <span>{formatDifficultyLabel(challenge.difficulty)}</span>
-                                <span>{challenge.tuplets ? "Tuplets on" : "Tuplets off"}</span>
+                               <div className="md:w-1/2 md:border-l md:border-border md:pl-4 flex flex-col gap-3">
+                                <ChallengeLeaderboard challengeId={challenge._id} limit={3} />
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenCompletions(challenge._id)}
+                                    className="text-[10px] uppercase tracking-wider"
+                                  >
+                                    Completions
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                          ))}
+                          )
+                        })}
                       </div>
                     </div>
                   )}
 
-                  {/* Edit challenge panel */}
-                  {editingChallenge && (
-                    <>
-                      <div className="border-t border-border" />
-                      <div className="flex flex-col gap-4">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-xs uppercase tracking-widest text-muted-foreground">Edit challenge</h2>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={cancelEditing}
-                              className="text-muted-foreground hover:text-foreground text-[10px] uppercase tracking-wider"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleDelete(editingChallenge)}
-                              className="text-destructive hover:text-destructive/80 text-[10px] uppercase tracking-wider"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        <input
-                          aria-label="Challenge title"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                          placeholder="Title"
-                          className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
-                        />
-                        <input
-                          aria-label="Challenge due date"
-                          type="datetime-local"
-                          value={editDueAt}
-                          onChange={(e) => setEditDueAt(e.target.value)}
-                          className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            aria-label="Challenge tempo"
-                            type="number"
-                            min={40}
-                            max={220}
-                            value={editTempo}
-                            onChange={(e) => setEditTempo(Number(e.target.value))}
-                            className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
-                            placeholder="Tempo"
-                          />
-                          <select
-                            aria-label="Challenge difficulty"
-                            value={editDifficulty}
-                            onChange={(e) => setEditDifficulty(e.target.value)}
-                            className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
-                          >
-                            <option value="easy">Easy</option>
-                            <option value="medium">Medium</option>
-                            <option value="hard">Hard</option>
-                          </select>
-                        </div>
-                        <label className="flex items-center justify-between border border-border px-3 py-2 text-[10px] uppercase tracking-wider">
-                          <span className="text-muted-foreground">Tuplets</span>
-                          <input
-                            type="checkbox"
-                            checked={editTuplets}
-                            onChange={(e) => setEditTuplets(e.target.checked)}
-                            className="w-4 h-4"
-                          />
-                        </label>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={handleSaveEdit}
-                          disabled={isSaving || !editTitle.trim()}
-                          className="text-[10px] uppercase tracking-wider"
-                        >
-                          Save changes
-                        </Button>
-                      </div>
-                    </>
-                  )}
                 </div>
               </PanelContainer>
             </div>
@@ -960,6 +1037,55 @@ export function GroupDetailPage() {
                 onSuccess={() => setIsChallengeModalOpen(false)}
               />
             </ResponsiveModal>
+
+            <ResponsiveModal
+              open={Boolean(editingChallenge)}
+              onOpenChange={(open) => {
+                if (!open) {
+                  cancelEditing()
+                }
+              }}
+              title="Edit Challenge"
+            >
+              <div className="flex flex-col gap-4">
+                <h2 className="text-xs uppercase tracking-widest text-muted-foreground">Edit challenge</h2>
+                <input
+                  aria-label="Challenge title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Title"
+                  className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
+                />
+                <input
+                  aria-label="Challenge due date"
+                  type="datetime-local"
+                  value={editDueAt}
+                  onChange={(e) => setEditDueAt(e.target.value)}
+                  className="w-full bg-background border border-border px-3 py-2 text-[10px] uppercase tracking-wider text-foreground"
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSaveEdit}
+                    disabled={isSaving || !editTitle.trim()}
+                    className="text-[10px] uppercase tracking-wider"
+                  >
+                    Save
+                  </Button>
+                  {editingChallenge && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(editingChallenge)}
+                      className="text-[10px] uppercase tracking-wider text-destructive border-destructive/40 hover:border-destructive hover:text-destructive"
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </ResponsiveModal>
           </div>
         )}
 
@@ -983,10 +1109,8 @@ export function GroupDetailPage() {
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                <span>{selectedChallenge.tempo ? `${selectedChallenge.tempo} bpm` : "Any tempo"}</span>
-                <span>{formatDifficultyLabel(selectedChallenge.difficulty)}</span>
                 <span>
-                  Due {formatShortDate(selectedChallenge.dueAt)}
+                  Due {formatShortDateTime(selectedChallenge.dueAt)}
                 </span>
               </div>
               {lastScore !== null && (
@@ -994,43 +1118,143 @@ export function GroupDetailPage() {
                   Last run: {lastScore} pts
                 </div>
               )}
+              <div className="flex flex-wrap items-center justify-center landscape:justify-start gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedChallenge) {
+                      handleOpenLeaderboard(selectedChallenge._id)
+                    }
+                  }}
+                  className="text-[10px] uppercase tracking-wider"
+                >
+                  Leaderboard
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleOpenCompletions(selectedChallenge._id)}
+                  className="text-[10px] uppercase tracking-wider"
+                >
+                  Completions
+                </Button>
+              </div>
             </div>
 
-            {/* Right column: Leaderboard + actions */}
+            {/* Right column: Mixer panel + actions */}
             <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4">
               <PanelContainer enableLines>
-                <div className="p-4 flex flex-col gap-4">
-                  <ChallengeLeaderboard challengeId={selectedChallenge._id} />
-                  <div className="border-t border-border pt-4">
-                    <UserChallengeCompletions challengeId={selectedChallenge._id} />
+                <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
+                  <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
+                  <Slider
+                    value={bpm}
+                    onValueChange={setBpm}
+                    min={60}
+                    max={180}
+                    step={5}
+                    icon={Gauge}
+                    label="BPM"
+                    color={calculateBPMColor(bpm)}
+                    units={["60", "120", "180"]}
+                    disabled={Boolean(selectedChallenge.tempo)}
+                  />
+                  <Slider
+                    value={difficultyValue}
+                    onValueChange={setDifficultyValue}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    icon={Signal}
+                    label="Level"
+                    color={
+                      difficulty === "easy"
+                        ? "rgb(52, 211, 153)"
+                        : difficulty === "medium"
+                          ? "rgb(251, 191, 36)"
+                          : "rgb(248, 113, 113)"
+                    }
+                    units={["EASY", "NORMAL", "HARD"]}
+                    snapPoints={[0, 0.5, 1]}
+                    disabled={Boolean(selectedChallenge.difficulty)}
+                  />
+                  <Slider
+                    value={playAlongVolume}
+                    onValueChange={setPlayAlongVolume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    icon={Volume2}
+                    label="Monitor"
+                    color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
+                    units={["0%", "50%", "100%"]}
+                  />
+                </div>
+
+                <div className="h-px bg-border w-full" />
+
+                <div className="flex items-stretch">
+                  <div className="flex-1 p-6 flex items-start justify-evenly">
+                    <AmpSwitch
+                      label="Practice"
+                      checked={false}
+                      onCheckedChange={() => {}}
+                      disabled
+                    />
+                    <AmpSwitch
+                      label="Tuplets"
+                      checked={includeTuplets}
+                      onCheckedChange={setIncludeTuplets}
+                      disabled={selectedChallenge.tuplets !== null && selectedChallenge.tuplets !== undefined}
+                    />
+                    <SoundboardButton
+                      label="Calibrate"
+                      onClick={() => navigate("/calibration")}
+                      active={isCalibrated}
+                      warning={!isCalibrated}
+                    />
                   </div>
-                  {isAdmin && (
-                    <div className="border-t border-border pt-4">
-                      <ChallengeCompletions challengeId={selectedChallenge._id} />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleStartFromHub}
-                      className="text-[10px] uppercase tracking-wider"
-                    >
-                      Start challenge
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate(`/groups/${groupId}`)}
-                      className="text-[10px] uppercase tracking-wider"
-                    >
-                      Back to group
-                    </Button>
+
+                  <div className="w-px bg-border" />
+
+                  <div className="p-6 flex items-start justify-center">
+                    <PlayButton onClick={handleStartFromHub} />
                   </div>
                 </div>
               </PanelContainer>
             </div>
+
+            <ResponsiveModal
+              open={isLeaderboardModalOpen}
+              onOpenChange={setIsLeaderboardModalOpen}
+              title="Leaderboard"
+            >
+              <div className="flex flex-col gap-4">
+                {leaderboardChallengeId && (
+                  <ChallengeLeaderboard challengeId={leaderboardChallengeId} />
+                )}
+              </div>
+            </ResponsiveModal>
+
           </div>
         )}
+
+        <ResponsiveModal
+          open={isCompletionsModalOpen}
+          onOpenChange={setIsCompletionsModalOpen}
+          title="My completions"
+        >
+          <div className="flex flex-col gap-4">
+            {completionsChallengeId && (
+              <UserChallengeCompletions challengeId={completionsChallengeId} />
+            )}
+            {isAdmin && completionsChallengeId && (
+              <div className="border-t border-border pt-4">
+                <ChallengeCompletions challengeId={completionsChallengeId} />
+              </div>
+            )}
+          </div>
+        </ResponsiveModal>
       </main>
     </div>
   )

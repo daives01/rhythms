@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react"
+import { Button } from "@/components/ui/button"
 import { api } from "../../../convex/_generated/api"
 import type { Id } from "../../../convex/_generated/dataModel"
 
@@ -25,6 +26,28 @@ const formatFullDate = (timestamp: number): string =>
     minute: "2-digit",
   })
 
+const csvEscape = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined) return ""
+  const text = String(value)
+  if (/[,"\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`
+  }
+  return text
+}
+
+const downloadCsv = (filename: string, rows: string[][]) => {
+  const content = rows.map((row) => row.join(",")).join("\n")
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function ChallengeCompletions({ challengeId }: { challengeId: Id<"challenges"> }) {
   const entries = useQuery(api.playHistory.listCompletionsForChallenge, { challengeId }) as
     | ChallengeCompletionEntry[]
@@ -48,9 +71,33 @@ export function ChallengeCompletions({ challengeId }: { challengeId: Id<"challen
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
-        Completions ({entries.length})
-      </span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          Completions ({entries.length})
+        </span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const rows = [
+              ["Name", "Email", "Score", "Tempo", "Difficulty", "Completed At"],
+              ...entries.map((entry) => [
+                csvEscape(entry.user.name ?? ""),
+                csvEscape(entry.user.email ?? ""),
+                csvEscape(entry.play.score),
+                csvEscape(entry.play.tempo),
+                csvEscape(entry.play.difficulty),
+                csvEscape(new Date(entry.play.createdAt).toISOString()),
+              ]),
+            ]
+            downloadCsv("challenge-completions.csv", rows)
+          }}
+          className="text-[10px] uppercase tracking-wider"
+        >
+          Export CSV
+        </Button>
+      </div>
       <div className="flex flex-col gap-1">
         {entries.map((entry) => (
           <div
