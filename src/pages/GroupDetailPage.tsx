@@ -366,7 +366,7 @@ export function GroupDetailPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
-  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
+  const { isReady: isUserReady } = useEnsureUser()
   const convex = useConvex()
   
   const groupId = id as Id<"groups">
@@ -515,7 +515,7 @@ export function GroupDetailPage() {
   }
 
   if (session.isPending || (session.data && !isUserReady)) {
-    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
+    return <AuthLoading label="Loading..." />
   }
 
   if (!session.data) {

@@ -35,7 +35,7 @@ export function GroupsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
-  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
+  const { isReady: isUserReady } = useEnsureUser()
   const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
   const challenges = useQuery(api.challenges.listForUser, session.data ? {} : "skip") as ChallengeEntry[] | undefined
   const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
@@ -68,7 +68,7 @@ export function GroupsPage() {
   const isPremium = Boolean(authSession?.premium)
 
   if (session.isPending || (session.data && !isUserReady)) {
-    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
+    return <AuthLoading label="Loading..." />
   }
 
   if (!session.data) {

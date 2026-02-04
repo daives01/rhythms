@@ -351,12 +351,12 @@ export const listForUser = query({
       memberships.map((membership) => ctx.db.get(membership.groupId))
     )
 
-    return groups
-      .map((group, index) => (group ? { group, membership: memberships[index] } : null))
-      .filter(
-        (entry): entry is { group: NonNullable<(typeof groups)[number]>; membership: (typeof memberships)[number] } =>
-          entry !== null
-      )
+    return groups.map((group, index) => {
+      if (!group) {
+        throw new ConvexError({ code: "NOT_FOUND", message: "Group not found." })
+      }
+      return { group, membership: memberships[index] }
+    })
   },
 })
 

@@ -15,7 +15,8 @@ export default defineSchema({
     name: v.string(),
     createdBy: v.id("users"),
     createdAt: v.number(),
-  }),
+  })
+    .index("by_createdBy", ["createdBy"]),
   groupMembers: defineTable({
     groupId: v.id("groups"),
     userId: v.id("users"),
@@ -71,5 +72,7 @@ export default defineSchema({
   })
     .index("by_userId_createdAt", ["userId", "createdAt"])
     .index("by_groupId_createdAt", ["groupId", "createdAt"])
-    .index("by_challengeId_createdAt", ["challengeId", "createdAt"]),
+    .index("by_challengeId_createdAt", ["challengeId", "createdAt"])
+    .index("by_challengeId_userId_createdAt", ["challengeId", "userId", "createdAt"])
+    .index("by_groupId_userId_createdAt", ["groupId", "userId", "createdAt"]),
 })

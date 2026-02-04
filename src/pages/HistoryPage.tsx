@@ -46,7 +46,7 @@ export function HistoryPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
-  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
+  const { isReady: isUserReady } = useEnsureUser()
   const {
     results: history,
     status,
@@ -60,7 +60,7 @@ export function HistoryPage() {
   const includeTuplets = loadTupletsSetting()
 
   if (session.isPending || (session.data && !isUserReady)) {
-    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
+    return <AuthLoading label="Loading..." />
   }
 
   if (!session.data) {

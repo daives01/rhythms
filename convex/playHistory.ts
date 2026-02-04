@@ -187,8 +187,9 @@ export const listUserCompletionsForChallenge = query({
 
     const plays = await ctx.db
       .query("playHistory")
-      .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
-      .filter((q) => q.eq(q.field("userId"), user._id))
+      .withIndex("by_challengeId_userId_createdAt", (q) =>
+        q.eq("challengeId", args.challengeId).eq("userId", user._id)
+      )
       .order("desc")
       .collect()
 
@@ -216,8 +217,9 @@ export const listForGroupByUser = query({
 
     return await ctx.db
       .query("playHistory")
-      .withIndex("by_groupId_createdAt", (q) => q.eq("groupId", args.groupId))
-      .filter((q) => q.eq(q.field("userId"), user._id))
+      .withIndex("by_groupId_userId_createdAt", (q) =>
+        q.eq("groupId", args.groupId).eq("userId", user._id)
+      )
       .order("desc")
       .take(limit)
   },

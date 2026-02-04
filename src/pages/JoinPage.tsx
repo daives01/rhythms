@@ -17,7 +17,7 @@ export function JoinPage() {
   const [searchParams] = useSearchParams()
   const codeParam = searchParams.get("code")
   const session = authClient.useSession()
-  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
+  const { isReady: isUserReady } = useEnsureUser()
 
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -45,7 +45,7 @@ export function JoinPage() {
   }
 
   if (session.isPending || (session.data && !isUserReady)) {
-    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
+    return <AuthLoading label="Loading..." />
   }
 
   // If not logged in, show auth prompt
