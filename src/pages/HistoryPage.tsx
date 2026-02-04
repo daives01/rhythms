@@ -4,6 +4,7 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
+import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { encodeChallenge, type ChallengeData } from "@/lib/random"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
@@ -45,6 +46,7 @@ export function HistoryPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
+  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
   const {
     results: history,
     status,
@@ -57,8 +59,8 @@ export function HistoryPage() {
   )
   const includeTuplets = loadTupletsSetting()
 
-  if (session.isPending) {
-    return <AuthLoading />
+  if (session.isPending || (session.data && !isUserReady)) {
+    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
   }
 
   if (!session.data) {

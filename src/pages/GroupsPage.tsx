@@ -6,6 +6,7 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
+import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import { cn } from "@/lib/utils"
@@ -34,6 +35,7 @@ export function GroupsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
+  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
   const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
   const challenges = useQuery(api.challenges.listForUser, session.data ? {} : "skip") as ChallengeEntry[] | undefined
   const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
@@ -65,8 +67,8 @@ export function GroupsPage() {
 
   const isPremium = Boolean(authSession?.premium)
 
-  if (session.isPending) {
-    return <AuthLoading />
+  if (session.isPending || (session.data && !isUserReady)) {
+    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
   }
 
   if (!session.data) {

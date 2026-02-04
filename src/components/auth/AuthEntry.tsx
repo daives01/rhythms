@@ -22,9 +22,7 @@ export function AuthEntry() {
   const navigate = useNavigate()
   const session = authClient.useSession()
   const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
-  const getOrCreateUser = useMutation(api.users.getOrCreateUser)
   const createGroup = useMutation(api.groups.create)
-  const hasEnsuredUser = useRef(false)
   const hasHandledAuthRedirect = useRef(false)
   const [open, setOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
@@ -33,19 +31,6 @@ export function AuthEntry() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [createGroupError, setCreateGroupError] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!session.data) {
-      hasEnsuredUser.current = false
-      return
-    }
-
-    if (hasEnsuredUser.current) return
-    hasEnsuredUser.current = true
-    getOrCreateUser().catch(() => {
-      hasEnsuredUser.current = false
-    })
-  }, [getOrCreateUser, session.data])
 
   useEffect(() => {
     if (!open) return

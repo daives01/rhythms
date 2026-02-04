@@ -131,7 +131,6 @@ export function Game() {
   const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false)
-  const canOpenGroups = Boolean(session.data && groups?.length)
 
   // iOS ringer warning
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
@@ -324,16 +323,17 @@ export function Game() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!canOpenGroups}
                 onClick={() => {
-                  if (canOpenGroups) {
+                  if (session.data) {
                     setIsGroupsModalOpen(true)
                   }
                 }}
                 className={cn(
                   "text-[10px] uppercase tracking-wider transition-opacity",
-                  canOpenGroups ? "opacity-100" : "opacity-0 pointer-events-none"
+                  session.data ? "opacity-100" : "opacity-0 pointer-events-none"
                 )}
+                aria-hidden={!session.data}
+                tabIndex={session.data ? 0 : -1}
               >
                 <Users className="w-3 h-3 mr-1" />
                 My groups
@@ -422,7 +422,7 @@ export function Game() {
           </div>
         )}
 
-        {session.data && groups?.length ? (
+        {session.data ? (
           <ResponsiveModal
             open={isGroupsModalOpen}
             onOpenChange={setIsGroupsModalOpen}
@@ -452,7 +452,7 @@ export function Game() {
                       )}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-foreground">{entry.group.name}</span>
+                        <span className="text-sm text-foreground uppercase">{entry.group.name}</span>
                         <span className={cn(
                           "text-[9px] uppercase tracking-wider px-2 py-0.5 border",
                           entry.membership.role === "admin"
@@ -468,7 +468,11 @@ export function Game() {
                     </button>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <div className="border border-dashed border-border/70 p-4 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+                  No groups yet.
+                </div>
+              )}
             </div>
           </ResponsiveModal>
         ) : null}

@@ -6,6 +6,7 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
+import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { encodeChallenge, generateSeed, type ChallengeData } from "@/lib/random"
@@ -365,6 +366,7 @@ export function GroupDetailPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
+  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
   const convex = useConvex()
   
   const groupId = id as Id<"groups">
@@ -512,8 +514,8 @@ export function GroupDetailPage() {
     }
   }
 
-  if (session.isPending) {
-    return <AuthLoading />
+  if (session.isPending || (session.data && !isUserReady)) {
+    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
   }
 
   if (!session.data) {

@@ -25,10 +25,10 @@ const VerifyEmail = ({ verificationUrl, clientUrl, supportEmail }: VerifyEmailPr
             <Button href={verificationUrl} style={layout.button}>
               Verify email
             </Button>
-            <Text style={{ ...layout.smallText, marginTop: "16px" }}>
-              If the button does not work, copy and paste this link into your browser:
+            <Text style={{ ...layout.smallText, marginTop: "20px" }}>
+              Or click:
             </Text>
-            <Text style={{ ...layout.smallText, wordBreak: "break-all", color: colors.accent }}>
+            <Text style={{ ...layout.smallText, marginTop: "6px", wordBreak: "break-all", color: colors.accent }}>
               {verificationUrl}
             </Text>
             <Hr style={layout.divider} />

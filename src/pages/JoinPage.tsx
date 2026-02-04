@@ -5,6 +5,7 @@ import { Users } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
+import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
@@ -16,6 +17,7 @@ export function JoinPage() {
   const [searchParams] = useSearchParams()
   const codeParam = searchParams.get("code")
   const session = authClient.useSession()
+  const { isReady: isUserReady, isEnsuring: isUserEnsuring } = useEnsureUser()
 
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -42,8 +44,8 @@ export function JoinPage() {
     }
   }
 
-  if (session.isPending) {
-    return <AuthLoading />
+  if (session.isPending || (session.data && !isUserReady)) {
+    return <AuthLoading label={isUserEnsuring ? "Finalizing your account..." : "Loading..."} />
   }
 
   // If not logged in, show auth prompt

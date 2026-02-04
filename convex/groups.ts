@@ -272,15 +272,22 @@ export const listMembers = query({
       .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
       .collect()
 
-    return memberships.map((membership) => ({
+    const users = await Promise.all(
+      memberships.map(async (membership) => ({
+        membership,
+        userDoc: await ctx.db.get(membership.userId),
+      }))
+    )
+
+    return users.map(({ membership, userDoc }) => ({
       membership,
       user: {
         _id: membership.userId,
         _creationTime: membership._creationTime,
-        authUserId: membership.userAuthUserId ?? "",
-        email: membership.userEmail,
-        name: membership.userName,
-        premium: membership.userPremium,
+        authUserId: userDoc?.authUserId ?? membership.userAuthUserId ?? "",
+        email: userDoc?.email ?? membership.userEmail,
+        name: userDoc?.name ?? membership.userName,
+        premium: userDoc?.premium ?? membership.userPremium,
         createdAt: membership.joinedAt,
       },
     }))
