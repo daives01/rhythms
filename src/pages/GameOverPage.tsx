@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { Gauge, Signal, Volume2, RotateCcw, Copy, Check } from "lucide-react"
-import type { GameScore, Difficulty } from "@/types"
+import type { GameScore } from "@/types"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { Slider } from "@/components/ui/slider"

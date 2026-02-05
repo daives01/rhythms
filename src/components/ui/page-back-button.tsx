@@ -11,11 +11,18 @@ interface PageBackButtonProps {
 
 export function PageBackButton({ to, label = "Back", className }: PageBackButtonProps) {
   const navigate = useNavigate()
+  const handleBackClick = () => {
+    if (typeof to === "number") {
+      navigate(to)
+      return
+    }
+    navigate(to)
+  }
 
   return (
     <Button
       variant="ghost"
-      onClick={() => navigate(to)}
+      onClick={handleBackClick}
       className={cn(
         "fixed left-4 top-4 z-50 text-[10px] uppercase tracking-wider",
         className

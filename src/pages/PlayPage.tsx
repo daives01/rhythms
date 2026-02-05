@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom"
-import type { GameScore, RuntimeBar, HitResult, Difficulty } from "@/types"
+import type { GameScore, RuntimeBar, HitResult } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
 import { rhythmBuffer } from "@/engines/RhythmEngine"
 import { judgeEngine } from "@/engines/JudgeEngine"
