@@ -9,9 +9,14 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
 import { decodeChallenge } from "@/lib/random"
+import { calculateScore } from "@/lib/score"
+import { getDifficultyFromValue } from "@/lib/format"
+import { loadSettings, LATENCY_OFFSET_KEY } from "@/lib/settings"
+import { useMutation } from "convex/react"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
+import { authClient } from "@/lib/auth-client"
 
-const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
-const SETTINGS_KEY = "rhythm-settings"
 const DEFAULT_LATENCY_OFFSET = 25
 
 function loadLatencyOffset(): number {
@@ -23,40 +28,14 @@ function loadLatencyOffset(): number {
   }
 }
 
-function loadPlayAlongVolume(): number {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return 0
-    const parsed = JSON.parse(stored)
-    return parsed.playAlongVolume ?? 0
-  } catch {
-    return 0
-  }
-}
-
-function loadGroupMode(): boolean {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return false
-    const parsed = JSON.parse(stored)
-    return parsed.groupMode ?? false
-  } catch {
-    return false
-  }
-}
-
-const getDifficultyFromValue = (v: number): Difficulty => {
-  if (v < 0.33) return "easy"
-  if (v < 0.67) return "medium"
-  return "hard"
-}
-
 export function PlayPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const challengeParam = searchParams.get("challenge")
-  const challengeDataRef = useRef(challengeParam ? decodeChallenge(challengeParam) : null)
-  const challengeData = challengeDataRef.current
+  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
+
+  const authSession = authClient.useSession()
+  const addPlayHistory = useMutation(api.playHistory.add)
 
   // Check if we arrived via proper navigation (with audio unlocked) or via reload/direct URL
   const location = useLocation()
@@ -66,6 +45,10 @@ export function PlayPage() {
   // This ensures audio autoplay policies are satisfied since user must interact before playing
   useEffect(() => {
     if (!challengeData || !hasAudioUnlock) {
+      if (challengeData?.groupId && challengeData?.challengeId) {
+        navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, { replace: true })
+        return
+      }
       if (challengeParam) {
         // Preserve challenge in URL so user lands on challenge landing page
         navigate(`/?challenge=${challengeParam}`, { replace: true })
@@ -73,7 +56,7 @@ export function PlayPage() {
         navigate("/", { replace: true })
       }
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [challengeData, challengeParam, hasAudioUnlock, navigate])
 
   const [phase, setPhase] = useState<"countIn" | "running">("countIn")
   const [bars, setBars] = useState<RuntimeBar[]>([])
@@ -90,20 +73,26 @@ export function PlayPage() {
   const feedbackTimeout = useRef<number | null>(null)
   const animationFrame = useRef<number | null>(null)
   const hasStarted = useRef(false)
+  const hasRecordedPlay = useRef(false)
   const scoreRef = useRef<GameScore>(score)
+  const authSessionRef = useRef(authSession.data)
 
   const latencyOffset = loadLatencyOffset()
-  const playAlongVolume = loadPlayAlongVolume()
-  const groupMode = loadGroupMode()
+  const settings = loadSettings()
+  const playAlongVolume = settings.playAlongVolume
+  const groupMode = settings.groupMode
 
   const gameBpm = challengeData?.bpm ?? 120
   const gameDifficulty = challengeData ? getDifficultyFromValue(challengeData.difficulty) : "easy"
   const gameTuplets = challengeData?.tuplets ?? false
 
-  // Keep scoreRef in sync with score state
+  // Keep refs in sync
   useEffect(() => {
     scoreRef.current = score
   }, [score])
+  useEffect(() => {
+    authSessionRef.current = authSession.data
+  }, [authSession.data])
 
   // Provide position data to NotationRenderer without triggering React re-renders
   const getPosition = useCallback((): PositionData | null => {
@@ -192,6 +181,39 @@ export function PlayPage() {
       transportEngine.stop()
       if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
 
+      if (challengeData?.groupId && challengeData?.challengeId) {
+        const finalScore = calculateScore(
+          scoreRef.current.totalHits,
+          gameBpm,
+          gameDifficulty,
+          scoreRef.current.timeSurvived
+        )
+        if (authSessionRef.current && !hasRecordedPlay.current) {
+          hasRecordedPlay.current = true
+          addPlayHistory({
+            seed: challengeData.seed,
+            tempo: gameBpm,
+            difficulty: gameDifficulty,
+            tuplets: gameTuplets,
+            score: finalScore,
+            hits: scoreRef.current.totalHits,
+            timeSurvived: scoreRef.current.timeSurvived,
+            groupId: challengeData.groupId as Id<"groups">,
+            challengeId: challengeData.challengeId as Id<"challenges">,
+          }).catch(() => {
+            hasRecordedPlay.current = false
+          })
+        }
+        navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, {
+          state: {
+            score: scoreRef.current,
+            finalScore,
+            gameOverReason: reason,
+          },
+        })
+        return
+      }
+
       navigate(`/game-over?challenge=${challengeParam}`, {
         state: {
           score: scoreRef.current,
@@ -205,7 +227,17 @@ export function PlayPage() {
       unsubJudge()
       unsubGameOver()
     }
-  }, [phase, groupMode, navigate, challengeParam])
+  }, [
+    phase,
+    groupMode,
+    navigate,
+    challengeParam,
+    challengeData,
+    gameBpm,
+    gameDifficulty,
+    gameTuplets,
+    addPlayHistory,
+  ])
 
   // Position updates - only for score tracking and bar advancement (not for animation)
   useEffect(() => {

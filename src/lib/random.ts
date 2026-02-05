@@ -20,16 +20,23 @@ export interface ChallengeData {
   bpm: number
   difficulty: number // 0-1 continuous value
   tuplets: boolean
+  groupId?: string        // Optional: group context for tracking
+  challengeId?: string    // Optional: challenge context for tracking
 }
 
 // Encode challenge data to a URL-safe base64 string
 export function encodeChallenge(data: ChallengeData): string {
-  const json = JSON.stringify({
+  const payload: Record<string, unknown> = {
     s: data.seed,
     b: data.bpm,
     d: Math.round(data.difficulty * 100), // Store as 0-100 int for compactness
     t: data.tuplets ? 1 : 0,
-  })
+  }
+  // Only include optional fields if they exist
+  if (data.groupId) payload.g = data.groupId
+  if (data.challengeId) payload.c = data.challengeId
+  
+  const json = JSON.stringify(payload)
   // Use base64url encoding (URL-safe)
   return btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }
@@ -50,6 +57,8 @@ export function decodeChallenge(encoded: string): ChallengeData | null {
       bpm: parsed.b,
       difficulty: parsed.d / 100,
       tuplets: parsed.t === 1,
+      groupId: parsed.g,
+      challengeId: parsed.c,
     }
   } catch {
     return null

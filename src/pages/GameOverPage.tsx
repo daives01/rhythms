@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { Gauge, Signal, Volume2, RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
 import { PanelContainer } from "@/components/ui/panel-container"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { Slider } from "@/components/ui/slider"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
@@ -11,105 +12,16 @@ import { TipModal } from "@/components/ui/tip-modal"
 
 import { decodeChallenge, generateSeed, encodeChallenge, type ChallengeData } from "@/lib/random"
 import { transportEngine } from "@/engines/TransportEngine"
-
-const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
-const SETTINGS_KEY = "rhythm-settings"
-
-interface StoredSettings {
-  bpm: number
-  difficultyValue: number
-  playAlongVolume: number
-  groupMode: boolean
-  includeTuplets: boolean
-}
-
-const DEFAULT_SETTINGS: StoredSettings = {
-  bpm: 120,
-  difficultyValue: 0,
-  playAlongVolume: 0.5,
-  groupMode: false,
-  includeTuplets: false,
-}
-
-function loadSettings(): StoredSettings {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return DEFAULT_SETTINGS
-    const parsed = JSON.parse(stored)
-    return { ...DEFAULT_SETTINGS, ...parsed }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
-
-function saveSettings(settings: Partial<StoredSettings>): void {
-  try {
-    const current = loadSettings()
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
-  } catch {
-    // ignore
-  }
-}
-
-function hasCalibrated(): boolean {
-  try {
-    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
-  } catch {
-    return false
-  }
-}
-
-const getDifficultyFromValue = (v: number): Difficulty => {
-  if (v < 0.33) return "easy"
-  if (v < 0.67) return "medium"
-  return "hard"
-}
-
-const calculateBPMColor = (bpm: number): string => {
-  const minBpm = 60
-  const maxBpm = 180
-  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
-
-  if (normalized <= 0.5) {
-    const p = normalized / 0.5
-    const r = Math.round(52 + p * (251 - 52))
-    const g = Math.round(211 + p * (191 - 211))
-    const b = Math.round(153 + p * (36 - 153))
-    return `rgb(${r}, ${g}, ${b})`
-  } else {
-    const p = (normalized - 0.5) / 0.5
-    const r = Math.round(251 + p * (248 - 251))
-    const g = Math.round(191 + p * (113 - 191))
-    const b = Math.round(36 + p * (113 - 36))
-    return `rgb(${r}, ${g}, ${b})`
-  }
-}
-
-const calculateScore = (
-  hits: number,
-  bpm: number,
-  difficulty: Difficulty,
-  timeSurvived: number
-): number => {
-  const difficultyMultipliers: Record<Difficulty, number> = {
-    easy: 1,
-    medium: 1.5,
-    hard: 2.5,
-  }
-
-  const difficultyBonus = difficultyMultipliers[difficulty]
-  const timeBonus = Math.max(1, timeSurvived / 10)
-  const bpmBonus = bpm / 120
-
-  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
-}
+import { calculateScore } from "@/lib/score"
+import { getDifficultyFromValue, calculateBPMColor } from "@/lib/format"
+import { loadSettings, saveSettings, hasCalibrated } from "@/lib/settings"
+import { useMutation } from "convex/react"
+import { api } from "../../convex/_generated/api"
+import type { Id } from "../../convex/_generated/dataModel"
+import { authClient } from "@/lib/auth-client"
 
 function getShareUrl(challenge: string): string {
-  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-  const baseUrl = isLocalhost
-    ? `${window.location.protocol}//${window.location.host}`
-    : "https://rhythms.daniel-ives.com"
-  return `${baseUrl}?challenge=${challenge}`
+  return `${window.location.origin}?challenge=${challenge}`
 }
 
 interface LocationState {
@@ -140,6 +52,10 @@ export function GameOverPage() {
 
   const score = state?.score ?? { barsSurvived: 0, beatsSurvived: 0, totalHits: 0, timeSurvived: 0 }
   const gameOverReason = state?.gameOverReason ?? "miss"
+
+  const authSession = authClient.useSession()
+  const addPlayHistory = useMutation(api.playHistory.add)
+  const hasRecordedPlay = useRef(false)
 
   // Surface tip warning for mobile users who fail quickly
   const [showSurfaceTip, setShowSurfaceTip] = useState(() => {
@@ -175,6 +91,27 @@ export function GameOverPage() {
     const runDifficulty = getDifficultyFromValue(challengeData?.difficulty ?? initialSettings.difficultyValue)
     return calculateScore(score.totalHits, runBpm, runDifficulty, score.timeSurvived)
   })
+
+  useEffect(() => {
+    // Skip if: no challenge, not authed, already recorded, or group challenge (PlayPage handles those)
+    if (!challengeData || !authSession.data || hasRecordedPlay.current) return
+    if (challengeData.groupId) return
+
+    hasRecordedPlay.current = true
+    addPlayHistory({
+      seed: challengeData.seed,
+      tempo: challengeData.bpm,
+      difficulty: getDifficultyFromValue(challengeData.difficulty),
+      tuplets: challengeData.tuplets,
+      score: finalScore,
+      hits: score.totalHits,
+      timeSurvived: score.timeSurvived,
+      groupId: undefined,
+      challengeId: challengeData.challengeId ? (challengeData.challengeId as Id<"challenges">) : undefined,
+    }).catch(() => {
+      hasRecordedPlay.current = false
+    })
+  }, [addPlayHistory, authSession, challengeData, finalScore, score.totalHits, score.timeSurvived])
 
   useEffect(() => {
     saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
@@ -231,6 +168,7 @@ export function GameOverPage() {
         WebkitUserSelect: "none",
       }}
     >
+      <PageBackButton to="/" label="Home" />
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
           {/* Left column: Title + Score */}

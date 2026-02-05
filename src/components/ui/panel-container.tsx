@@ -6,15 +6,21 @@ interface PanelContainerProps {
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
+  enableLines?: boolean
 }
 
 const GRID_OFFSET = 8
 
-export function PanelContainer({ children, className, style }: PanelContainerProps) {
+export function PanelContainer({ children, className, style, enableLines = true }: PanelContainerProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [bounds, setBounds] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null)
 
   useLayoutEffect(() => {
+    if (!enableLines) {
+      setBounds(null)
+      return
+    }
+
     const el = ref.current
     if (!el) return
 
@@ -32,16 +38,20 @@ export function PanelContainer({ children, className, style }: PanelContainerPro
     window.addEventListener("resize", updateBounds)
     const ro = new ResizeObserver(updateBounds)
     ro.observe(el)
+    const root = document.documentElement
+    const rootObserver = new ResizeObserver(updateBounds)
+    rootObserver.observe(root)
 
     return () => {
       window.removeEventListener("resize", updateBounds)
       ro.disconnect()
+      rootObserver.disconnect()
     }
-  }, [])
+  }, [enableLines])
 
   return (
     <div ref={ref} className={cn("relative", className)} style={style}>
-      {bounds && createPortal(
+      {enableLines && bounds && createPortal(
         <>
           <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.top }} />
           <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.bottom }} />

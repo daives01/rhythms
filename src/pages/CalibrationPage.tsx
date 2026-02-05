@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { CalibrationScreen } from "@/components/CalibrationScreen"
+import { PageBackButton } from "@/components/ui/page-back-button"
 
 const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
 const CALIBRATION_HISTORY_KEY = "rhythm-calibration-history"
@@ -64,17 +65,16 @@ function addToHistory(offset: number, history: CalibrationEntry[]): CalibrationE
 export function CalibrationPage() {
   const navigate = useNavigate()
   const [currentOffset, setCurrentOffset] = useState(loadLatencyOffset)
-  const [calibrationHistory, setCalibrationHistory] = useState<CalibrationEntry[]>(loadCalibrationHistory)
-
-  useEffect(() => {
+  const [calibrationHistory, setCalibrationHistory] = useState<CalibrationEntry[]>(() => {
     const existingHistory = loadCalibrationHistory()
     const currentOff = loadLatencyOffset()
     if (existingHistory.length === 0 && currentOff !== DEFAULT_LATENCY_OFFSET) {
       const initialHistory = [{ offset: currentOff, timestamp: Date.now() }]
-      setCalibrationHistory(initialHistory)
       saveCalibrationHistory(initialHistory)
+      return initialHistory
     }
-  }, [])
+    return existingHistory
+  })
 
   const handleComplete = (offset: number) => {
     saveLatencyOffset(offset)
@@ -106,6 +106,7 @@ export function CalibrationPage() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-auto">
+        <PageBackButton to={-1} />
         <CalibrationScreen
           onComplete={handleComplete}
           onCancel={handleCancel}

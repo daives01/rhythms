@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme {
   /* Typography - Monospace everywhere */
@@ -376,4 +377,13 @@
   .stagger-3 { animation-delay: 0.3s; }
   .stagger-4 { animation-delay: 0.4s; }
   .stagger-5 { animation-delay: 0.5s; }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
