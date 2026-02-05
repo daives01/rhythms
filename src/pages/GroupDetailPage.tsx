@@ -348,6 +348,7 @@ export function GroupDetailPage() {
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
   const { isReady: isUserReady, user: currentUser } = useEnsureUser()
+  const canQuery = Boolean(session.data && isUserReady)
   
   const groupId = id as Id<"groups">
   const challengeParam = searchParams.get("challenge")
@@ -355,7 +356,7 @@ export function GroupDetailPage() {
   
   const groupDetail = useQuery(
     api.groups.getDetail,
-    session.data && groupId ? { groupId, includePast: true } : "skip"
+    canQuery && groupId ? { groupId, includePast: true } : "skip"
   ) as
     | {
         group: { name: string }
@@ -368,16 +369,16 @@ export function GroupDetailPage() {
 
   const challengeDetail = useQuery(
     api.challenges.get,
-    session.data && challengeId ? { challengeId } : "skip"
+    canQuery && challengeId ? { challengeId } : "skip"
   ) as ChallengeEntry | null | undefined
   
   const createChallenge = useMutation(api.challenges.create)
   const updateChallenge = useMutation(api.challenges.update)
   const deleteChallenge = useMutation(api.challenges.delete_)
-  const playHistory = useQuery(api.playHistory.listForUser, session.data ? { limit: 12 } : "skip")
+  const playHistory = useQuery(api.playHistory.listForUser, canQuery ? { limit: 12 } : "skip")
   const groupCompletions = useQuery(
     api.playHistory.listForGroupByUser,
-    session.data && groupId ? { groupId, limit: 200 } : "skip"
+    canQuery && groupId ? { groupId, limit: 200 } : "skip"
   )
 
   const [isCreatingChallenge, setIsCreatingChallenge] = useState(false)

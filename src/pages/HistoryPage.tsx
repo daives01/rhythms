@@ -17,6 +17,7 @@ export function HistoryPage() {
   const navigate = useNavigate()
   const session = authClient.useSession()
   const { isReady: isUserReady } = useEnsureUser()
+  const canQuery = Boolean(session.data && isUserReady)
   const {
     results: history,
     status,
@@ -24,7 +25,7 @@ export function HistoryPage() {
     isLoading,
   } = usePaginatedQuery(
     api.playHistory.listForUserPaginated,
-    session.data ? {} : "skip",
+    canQuery ? {} : "skip",
     { initialNumItems: 20 }
   )
   const includeTuplets = loadSettings().includeTuplets

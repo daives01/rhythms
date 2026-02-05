@@ -36,9 +36,10 @@ export function GroupsPage() {
   const navigate = useNavigate()
   const session = authClient.useSession()
   const { isReady: isUserReady } = useEnsureUser()
-  const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
-  const challenges = useQuery(api.challenges.listForUser, session.data ? {} : "skip") as ChallengeEntry[] | undefined
-  const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
+  const canQuery = Boolean(session.data && isUserReady)
+  const groups = useQuery(api.groups.listForUser, canQuery ? {} : "skip") as GroupListEntry[] | undefined
+  const challenges = useQuery(api.challenges.listForUser, canQuery ? {} : "skip") as ChallengeEntry[] | undefined
+  const authSession = useQuery(api.users.getAuthSession, canQuery ? {} : "skip")
   
   const createGroup = useMutation(api.groups.create)
 
