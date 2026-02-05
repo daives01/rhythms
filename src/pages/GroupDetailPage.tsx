@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom"
-import { useMutation, useQuery, useConvex } from "convex/react"
+import { useMutation, useQuery } from "convex/react"
 import { CalendarClock, Plus, UserPlus, UserCog, ChevronUp, ChevronDown, Trophy, Gauge, Signal, Volume2, Pencil } from "lucide-react"
 import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
@@ -30,60 +30,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-const SETTINGS_KEY = "rhythm-settings"
-const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
-
-interface StoredSettings {
-  bpm: number
-  difficultyValue: number
-  playAlongVolume: number
-  groupMode: boolean
-  includeTuplets: boolean
-}
-
-const DEFAULT_SETTINGS: StoredSettings = {
-  bpm: 120,
-  difficultyValue: 0.5,
-  playAlongVolume: 0.5,
-  groupMode: false,
-  includeTuplets: false,
-}
-
-function loadSettings(): StoredSettings {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return DEFAULT_SETTINGS
-    const parsed = JSON.parse(stored)
-    return { ...DEFAULT_SETTINGS, ...parsed }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
-
-function saveSettings(settings: Partial<StoredSettings>): void {
-  try {
-    const current = loadSettings()
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
-  } catch {
-    // ignore
-  }
-}
-
-function hasCalibrated(): boolean {
-  try {
-    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
-  } catch {
-    return false
-  }
-}
-
-function formatShortDate(timestamp: number): string {
-  const date = new Date(timestamp)
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })
-}
+import { loadSettings, saveSettings, hasCalibrated } from "@/lib/settings"
+import { formatShortDate, formatDifficultyLabel, getDifficultyFromValue, calculateBPMColor, difficultyValueMap } from "@/lib/format"
 
 function formatShortDateTime(timestamp: number): string {
   const dateLabel = formatShortDate(timestamp)
@@ -104,36 +52,6 @@ function formatLocalDateTime(date: Date): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
-function formatDifficultyLabel(value?: string | null): string {
-  if (!value) return "Any"
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-const getDifficultyFromValue = (v: number): "easy" | "medium" | "hard" => {
-  if (v < 0.33) return "easy"
-  if (v < 0.67) return "medium"
-  return "hard"
-}
-
-const calculateBPMColor = (bpm: number): string => {
-  const minBpm = 60
-  const maxBpm = 180
-  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
-
-  if (normalized <= 0.5) {
-    const p = normalized / 0.5
-    const r = Math.round(52 + p * (251 - 52))
-    const g = Math.round(211 + p * (191 - 211))
-    const b = Math.round(153 + p * (36 - 153))
-    return `rgb(${r}, ${g}, ${b})`
-  }
-
-  const p = (normalized - 0.5) / 0.5
-  const r = Math.round(251 + p * (248 - 251))
-  const g = Math.round(191 + p * (113 - 191))
-  const b = Math.round(36 + p * (113 - 36))
-  return `rgb(${r}, ${g}, ${b})`
-}
 
 function getDueStatus(dueAt: number): { text: string; isPast: boolean } {
   const now = Date.now()
@@ -146,12 +64,6 @@ function getDueStatus(dueAt: number): { text: string; isPast: boolean } {
   if (days === 0) return { text: `Due in ${hours} hour${hours === 1 ? "" : "s"}`, isPast: false }
   if (days === 1) return { text: "Due tomorrow", isPast: false }
   return { text: `Due in ${days} days`, isPast: false }
-}
-
-const difficultyValueMap: Record<string, number> = {
-  easy: 0,
-  medium: 0.5,
-  hard: 1,
 }
 
 interface ChallengeEntry {
@@ -435,8 +347,7 @@ export function GroupDetailPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
-  const { isReady: isUserReady } = useEnsureUser()
-  const convex = useConvex()
+  const { isReady: isUserReady, user: currentUser } = useEnsureUser()
   
   const groupId = id as Id<"groups">
   const challengeParam = searchParams.get("challenge")
@@ -1017,10 +928,10 @@ export function GroupDetailPage() {
               onOpenChange={setIsMemberModalOpen}
               title="Manage Members"
             >
-              {session.data && (
-                <MemberManager 
-                  groupId={groupId} 
-                  currentUserId={session.data.user.id as Id<"users">}
+              {currentUser && (
+                <MemberManager
+                  groupId={groupId}
+                  currentUserId={currentUser._id}
                 />
               )}
             </ResponsiveModal>

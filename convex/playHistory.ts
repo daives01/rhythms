@@ -26,6 +26,23 @@ const userPreviewValidator = v.object({
   email: v.optional(v.string()),
 })
 
+const serverCalculateScore = (
+  hits: number,
+  bpm: number,
+  difficulty: string,
+  timeSurvived: number
+): number => {
+  const difficultyMultipliers: Record<string, number> = {
+    easy: 1,
+    medium: 1.5,
+    hard: 2.5,
+  }
+  const difficultyBonus = difficultyMultipliers[difficulty] ?? 1
+  const timeBonus = Math.max(1, timeSurvived / 10)
+  const bpmBonus = bpm / 120
+  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
+}
+
 export const add = mutation({
   args: {
     seed: v.string(),
@@ -33,6 +50,8 @@ export const add = mutation({
     difficulty: v.string(),
     tuplets: v.optional(v.boolean()),
     score: v.number(),
+    hits: v.number(),
+    timeSurvived: v.number(),
     groupId: v.optional(v.id("groups")),
     challengeId: v.optional(v.id("challenges")),
   },
@@ -41,8 +60,16 @@ export const add = mutation({
     const user = await requireCurrentUser(ctx)
     const now = Date.now()
 
-    if (args.score < 0 || args.score > 10000 || !Number.isFinite(args.score)) {
-      throw new ConvexError({ code: "BAD_REQUEST", message: "Invalid score." })
+    if (!Number.isFinite(args.hits) || args.hits < 0 || args.hits > 10000) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Invalid hits." })
+    }
+    if (!Number.isFinite(args.timeSurvived) || args.timeSurvived < 0 || args.timeSurvived > 3600) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Invalid time survived." })
+    }
+
+    const computedScore = serverCalculateScore(args.hits, args.tempo, args.difficulty, args.timeSurvived)
+    if (Math.abs(computedScore - args.score) > 1) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Score mismatch." })
     }
 
     if (args.groupId) {
@@ -219,7 +246,7 @@ export const listUserCompletionsForChallenge = query({
         q.eq("challengeId", args.challengeId).eq("userId", user._id)
       )
       .order("desc")
-      .collect()
+      .take(200)
 
     return plays.map((play) => ({
       play,
@@ -274,15 +301,26 @@ export const listCompletionsForChallenge = query({
       .query("playHistory")
       .withIndex("by_challengeId_createdAt", (q) => q.eq("challengeId", args.challengeId))
       .order("desc")
-      .collect()
+      .take(1000)
 
-    return plays.map((play) => ({
-      play,
-      user: {
-        _id: play.userId,
-        name: play.userName,
-        email: play.userEmail,
-      },
-    }))
+    const userIds = [...new Set(plays.map((p) => p.userId))]
+    const users = await Promise.all(userIds.map((id) => ctx.db.get(id)))
+    const usersById = new Map(
+      users
+        .filter((u): u is NonNullable<typeof u> => Boolean(u))
+        .map((u) => [u._id, u])
+    )
+
+    return plays.map((play) => {
+      const user = usersById.get(play.userId)
+      return {
+        play,
+        user: {
+          _id: play.userId,
+          name: user?.name ?? play.userName,
+          email: user?.email ?? play.userEmail,
+        },
+      }
+    })
   },
 })

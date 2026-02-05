@@ -31,10 +31,13 @@ export const create = mutation({
   returns: challengeValidator,
   handler: async (ctx, args) => {
     const { user } = await requireGroupAdmin(ctx, args.groupId)
+    if (!args.title.trim() || args.title.length > 200) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Challenge title must be 1-200 characters." })
+    }
     const challengeId = await ctx.db.insert("challenges", {
       groupId: args.groupId,
       createdBy: user._id,
-      title: args.title,
+      title: args.title.trim(),
       description: args.description,
       dueAt: args.dueAt,
       tempo: args.tempo,
@@ -125,8 +128,12 @@ export const update = mutation({
     }
     await requireGroupAdmin(ctx, challenge.groupId)
 
+    if (args.title !== undefined && (!args.title.trim() || args.title.length > 200)) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Challenge title must be 1-200 characters." })
+    }
+
     const updates: Partial<typeof challenge> = {}
-    if (args.title !== undefined) updates.title = args.title
+    if (args.title !== undefined) updates.title = args.title.trim()
     if (args.description !== undefined) updates.description = args.description
     if (args.dueAt !== undefined) updates.dueAt = args.dueAt
     if (args.tempo !== undefined) updates.tempo = args.tempo

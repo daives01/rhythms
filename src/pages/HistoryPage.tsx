@@ -8,39 +8,9 @@ import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { encodeChallenge, type ChallengeData } from "@/lib/random"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
+import { loadSettings } from "@/lib/settings"
+import { formatShortDate, formatDifficultyLabel, difficultyValueMap } from "@/lib/format"
 import { api } from "../../convex/_generated/api"
-
-const SETTINGS_KEY = "rhythm-settings"
-
-function loadTupletsSetting(): boolean {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return false
-    const parsed = JSON.parse(stored)
-    return parsed.includeTuplets ?? false
-  } catch {
-    return false
-  }
-}
-
-function formatShortDate(timestamp: number): string {
-  const date = new Date(timestamp)
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })
-}
-
-function formatDifficultyLabel(value?: string | null): string {
-  if (!value) return "Any"
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
-const difficultyValueMap: Record<string, number> = {
-  easy: 0,
-  medium: 0.5,
-  hard: 1,
-}
 
 export function HistoryPage() {
   const location = useLocation()
@@ -57,7 +27,7 @@ export function HistoryPage() {
     session.data ? {} : "skip",
     { initialNumItems: 20 }
   )
-  const includeTuplets = loadTupletsSetting()
+  const includeTuplets = loadSettings().includeTuplets
 
   if (session.isPending || (session.data && !isUserReady)) {
     return <AuthLoading label="Loading..." />

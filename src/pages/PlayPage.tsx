@@ -10,13 +10,13 @@ import { useKeyboardInput } from "@/hooks/useKeyboardInput"
 import { cn } from "@/lib/utils"
 import { decodeChallenge } from "@/lib/random"
 import { calculateScore } from "@/lib/score"
+import { getDifficultyFromValue } from "@/lib/format"
+import { loadSettings, LATENCY_OFFSET_KEY } from "@/lib/settings"
 import { useMutation } from "convex/react"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
 import { authClient } from "@/lib/auth-client"
 
-const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
-const SETTINGS_KEY = "rhythm-settings"
 const DEFAULT_LATENCY_OFFSET = 25
 
 function loadLatencyOffset(): number {
@@ -26,34 +26,6 @@ function loadLatencyOffset(): number {
   } catch {
     return DEFAULT_LATENCY_OFFSET
   }
-}
-
-function loadPlayAlongVolume(): number {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return 0
-    const parsed = JSON.parse(stored)
-    return parsed.playAlongVolume ?? 0
-  } catch {
-    return 0
-  }
-}
-
-function loadGroupMode(): boolean {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return false
-    const parsed = JSON.parse(stored)
-    return parsed.groupMode ?? false
-  } catch {
-    return false
-  }
-}
-
-const getDifficultyFromValue = (v: number): Difficulty => {
-  if (v < 0.33) return "easy"
-  if (v < 0.67) return "medium"
-  return "hard"
 }
 
 export function PlayPage() {
@@ -103,19 +75,24 @@ export function PlayPage() {
   const hasStarted = useRef(false)
   const hasRecordedPlay = useRef(false)
   const scoreRef = useRef<GameScore>(score)
+  const authSessionRef = useRef(authSession.data)
 
   const latencyOffset = loadLatencyOffset()
-  const playAlongVolume = loadPlayAlongVolume()
-  const groupMode = loadGroupMode()
+  const settings = loadSettings()
+  const playAlongVolume = settings.playAlongVolume
+  const groupMode = settings.groupMode
 
   const gameBpm = challengeData?.bpm ?? 120
   const gameDifficulty = challengeData ? getDifficultyFromValue(challengeData.difficulty) : "easy"
   const gameTuplets = challengeData?.tuplets ?? false
 
-  // Keep scoreRef in sync with score state
+  // Keep refs in sync
   useEffect(() => {
     scoreRef.current = score
   }, [score])
+  useEffect(() => {
+    authSessionRef.current = authSession.data
+  }, [authSession.data])
 
   // Provide position data to NotationRenderer without triggering React re-renders
   const getPosition = useCallback((): PositionData | null => {
@@ -211,7 +188,7 @@ export function PlayPage() {
           gameDifficulty,
           scoreRef.current.timeSurvived
         )
-        if (authSession.data && !hasRecordedPlay.current) {
+        if (authSessionRef.current && !hasRecordedPlay.current) {
           hasRecordedPlay.current = true
           addPlayHistory({
             seed: challengeData.seed,
@@ -219,6 +196,8 @@ export function PlayPage() {
             difficulty: gameDifficulty,
             tuplets: gameTuplets,
             score: finalScore,
+            hits: scoreRef.current.totalHits,
+            timeSurvived: scoreRef.current.timeSurvived,
             groupId: challengeData.groupId as Id<"groups">,
             challengeId: challengeData.challengeId as Id<"challenges">,
           })
@@ -274,7 +253,7 @@ export function PlayPage() {
     challengeData,
     gameBpm,
     gameDifficulty,
-    authSession,
+    gameTuplets,
     addPlayHistory,
   ])
 

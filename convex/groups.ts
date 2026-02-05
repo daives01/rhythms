@@ -72,9 +72,12 @@ export const create = mutation({
     if (!user.premium) {
       throw new ConvexError({ code: "FORBIDDEN", message: "Premium access required to create groups." })
     }
+    if (!args.name.trim() || args.name.length > 200) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Group name must be 1-200 characters." })
+    }
     const now = Date.now()
     const groupId = await ctx.db.insert("groups", {
-      name: args.name,
+      name: args.name.trim(),
       createdBy: user._id,
       createdAt: now,
     })
@@ -431,7 +434,7 @@ export const getDetail = query({
       memberCount: await ctx.db
         .query("groupMembers")
         .withIndex("by_groupId", (q) => q.eq("groupId", args.groupId))
-        .collect()
+        .take(1001)
         .then((results) => results.length),
       challenges: filteredChallenges,
     }
