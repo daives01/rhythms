@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom"
 import { Gauge, Signal, Volume2, RotateCcw, Copy, Check } from "lucide-react"
 import type { GameScore, Difficulty } from "@/types"
 import { PanelContainer } from "@/components/ui/panel-container"
+import { PageBackButton } from "@/components/ui/page-back-button"
 import { Slider } from "@/components/ui/slider"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
@@ -167,6 +168,7 @@ export function GameOverPage() {
         WebkitUserSelect: "none",
       }}
     >
+      <PageBackButton to="/" label="Home" />
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
         <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
           {/* Left column: Title + Score */}
