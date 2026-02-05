@@ -107,27 +107,4 @@ export const getAuthSession = query({
   },
 })
 
-export const setPremiumByEmail = mutation({
-  args: {
-    email: v.string(),
-    premium: v.boolean(),
-  },
-  returns: userValidator,
-  handler: async (ctx, args) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
-      .unique()
-    if (!user) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "User not found." })
-    }
-    await ctx.db.patch(user._id, { premium: args.premium })
-    const updated = await ctx.db.get(user._id)
-    if (!updated) {
-      throw new ConvexError({ code: "NOT_FOUND", message: "User update failed." })
-    }
-    return updated
-  },
-})
-
 export type UserDoc = Doc<"users">

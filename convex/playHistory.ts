@@ -41,6 +41,10 @@ export const add = mutation({
     const user = await requireCurrentUser(ctx)
     const now = Date.now()
 
+    if (args.score < 0 || args.score > 10000 || !Number.isFinite(args.score)) {
+      throw new ConvexError({ code: "BAD_REQUEST", message: "Invalid score." })
+    }
+
     if (args.groupId) {
       await requireGroupMember(ctx, args.groupId)
     }
@@ -56,6 +60,18 @@ export const add = mutation({
       }
       if (challenge.dueAt < Date.now()) {
         throw new ConvexError({ code: "FORBIDDEN", message: "Challenge is past due." })
+      }
+      if (challenge.tempo != null && args.tempo !== challenge.tempo) {
+        throw new ConvexError({ code: "BAD_REQUEST", message: "Tempo does not match challenge requirements." })
+      }
+      if (challenge.difficulty != null && args.difficulty !== challenge.difficulty) {
+        throw new ConvexError({ code: "BAD_REQUEST", message: "Difficulty does not match challenge requirements." })
+      }
+      if (challenge.seed != null && args.seed !== challenge.seed) {
+        throw new ConvexError({ code: "BAD_REQUEST", message: "Seed does not match challenge requirements." })
+      }
+      if (challenge.tuplets != null && args.tuplets !== challenge.tuplets) {
+        throw new ConvexError({ code: "BAD_REQUEST", message: "Tuplets setting does not match challenge requirements." })
       }
     }
 

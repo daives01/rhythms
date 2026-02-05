@@ -1,10 +1,10 @@
 "use node"
 
-import { action } from "./_generated/server"
+import { internalAction } from "./_generated/server"
 import { v } from "convex/values"
 import { Resend } from "resend"
 
-export const sendEmail = action({
+export const sendEmail = internalAction({
   args: {
     to: v.string(),
     subject: v.string(),

@@ -1,14 +1,14 @@
 import { ConvexError } from "convex/values"
 import type { MutationCtx, QueryCtx } from "./_generated/server"
 import type { Id } from "./_generated/dataModel"
+import { authComponent } from "./auth"
 
 export const requireAuthUserId = async (ctx: QueryCtx | MutationCtx) => {
-  const identity = await ctx.auth.getUserIdentity()
-  const authUserId = identity?.subject
-  if (!authUserId) {
+  const authUser = await authComponent.safeGetAuthUser(ctx)
+  if (!authUser) {
     throw new ConvexError({ code: "UNAUTHORIZED", message: "Sign in required." })
   }
-  return authUserId
+  return authUser._id
 }
 
 export const getUserByAuthId = async (ctx: QueryCtx | MutationCtx, authUserId: string) => {
