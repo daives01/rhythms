@@ -3,6 +3,7 @@ import type { Id } from "./_generated/dataModel"
 import { ConvexError, v } from "convex/values"
 import { paginationOptsValidator, paginationResultValidator } from "convex/server"
 import { requireCurrentUser, requireGroupAdmin, requireGroupMember } from "./groupMembers"
+import { calculateScore } from "./scoring"
 
 const playHistoryValidator = v.object({
   _id: v.id("playHistory"),
@@ -25,23 +26,6 @@ const userPreviewValidator = v.object({
   name: v.optional(v.string()),
   email: v.optional(v.string()),
 })
-
-const serverCalculateScore = (
-  hits: number,
-  bpm: number,
-  difficulty: string,
-  timeSurvived: number
-): number => {
-  const difficultyMultipliers: Record<string, number> = {
-    easy: 1,
-    medium: 1.5,
-    hard: 2.5,
-  }
-  const difficultyBonus = difficultyMultipliers[difficulty] ?? 1
-  const timeBonus = Math.max(1, timeSurvived / 10)
-  const bpmBonus = bpm / 120
-  return Math.round(hits * difficultyBonus * timeBonus * bpmBonus)
-}
 
 export const add = mutation({
   args: {
@@ -67,7 +51,7 @@ export const add = mutation({
       throw new ConvexError({ code: "BAD_REQUEST", message: "Invalid time survived." })
     }
 
-    const computedScore = serverCalculateScore(args.hits, args.tempo, args.difficulty, args.timeSurvived)
+    const computedScore = calculateScore(args.hits, args.tempo, args.difficulty, args.timeSurvived)
     if (Math.abs(computedScore - args.score) > 1) {
       throw new ConvexError({ code: "BAD_REQUEST", message: "Score mismatch." })
     }

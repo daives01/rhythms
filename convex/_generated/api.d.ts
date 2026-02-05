@@ -17,6 +17,7 @@ import type * as groupMembers from "../groupMembers.js";
 import type * as groups from "../groups.js";
 import type * as http from "../http.js";
 import type * as playHistory from "../playHistory.js";
+import type * as scoring from "../scoring.js";
 import type * as sendEmail from "../sendEmail.js";
 import type * as users from "../users.js";
 
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   groups: typeof groups;
   http: typeof http;
   playHistory: typeof playHistory;
+  scoring: typeof scoring;
   sendEmail: typeof sendEmail;
   users: typeof users;
 }>;

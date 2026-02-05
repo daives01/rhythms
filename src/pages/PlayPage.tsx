@@ -200,27 +200,9 @@ export function PlayPage() {
             timeSurvived: scoreRef.current.timeSurvived,
             groupId: challengeData.groupId as Id<"groups">,
             challengeId: challengeData.challengeId as Id<"challenges">,
+          }).catch(() => {
+            hasRecordedPlay.current = false
           })
-            .then(() => {
-              navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, {
-                state: {
-                  score: scoreRef.current,
-                  finalScore,
-                  gameOverReason: reason,
-                },
-              })
-            })
-            .catch(() => {
-              hasRecordedPlay.current = false
-              navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, {
-                state: {
-                  score: scoreRef.current,
-                  finalScore,
-                  gameOverReason: reason,
-                },
-              })
-            })
-          return
         }
         navigate(`/groups/${challengeData.groupId}?challenge=${challengeData.challengeId}`, {
           state: {
