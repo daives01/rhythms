@@ -105,7 +105,7 @@ export class TransportEngine {
   async init(): Promise<void> {
     // Ensure audio is unlocked (in case unlockAudio wasn't called first)
     this.unlockAudio()
-    
+
     // Wait for the context to be running
     if (this.audioContext && this.audioContext.state !== "running") {
       await this.audioContext.resume()
@@ -174,7 +174,6 @@ export class TransportEngine {
     this.currentBeatIndex = 0
     this.nextBeatTime = this.audioContext.currentTime + 0.05
     this.startTimeSec = this.nextBeatTime + this.countInBeats * this.getSecondsPerBeat()
-
     this.scheduler()
   }
 

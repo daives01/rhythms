@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom"
 import type { GameScore, RuntimeBar, HitResult } from "@/types"
 import { transportEngine } from "@/engines/TransportEngine"
@@ -32,7 +32,11 @@ export function PlayPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const challengeParam = searchParams.get("challenge")
-  const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
+  // Keep decoded challenge stable so the start effect doesn't re-run/cleanup mid-count-in.
+  const challengeData = useMemo(
+    () => (challengeParam ? decodeChallenge(challengeParam) : null),
+    [challengeParam]
+  )
 
   const authSession = authClient.useSession()
   const addPlayHistory = useMutation(api.playHistory.add)
