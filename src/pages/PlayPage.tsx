@@ -123,7 +123,7 @@ export function PlayPage() {
 
   // Start game on mount
   useEffect(() => {
-    if (!challengeData || hasStarted.current) return
+    if (!challengeData || !hasAudioUnlock || hasStarted.current) return
     hasStarted.current = true
 
     const startGame = async () => {
@@ -152,7 +152,7 @@ export function PlayPage() {
       transportEngine.stop()
       judgeEngine.stop()
     }
-  }, [challengeData, gameBpm, gameDifficulty, gameTuplets, latencyOffset, playAlongVolume])
+  }, [challengeData, gameBpm, gameDifficulty, gameTuplets, latencyOffset, playAlongVolume, hasAudioUnlock])
 
   // Beat and judge subscriptions
   useEffect(() => {
