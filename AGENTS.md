@@ -2,3 +2,4 @@
 - react compiler is on, no need for useMemo, etc
 - don't run the dev server, I'm running it already
 - you can run `bunx convex dev --once` to type check, etc
+- after finishing work, run `bun run check` at the repo root

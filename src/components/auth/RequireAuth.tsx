@@ -9,18 +9,18 @@ interface RequireAuthProps {
 
 export function RequireAuth({ children }: RequireAuthProps) {
   const navigate = useNavigate()
-  const location = useLocation()
+  const { pathname, search, hash } = useLocation()
   const session = authClient.useSession()
 
   useEffect(() => {
     if (!session.data && !session.isPending) {
-      const returnTo = getReturnToFromLocation(location)
+      const returnTo = getReturnToFromLocation({ pathname, search, hash })
       navigate({
-        pathname: location.pathname,
-        search: buildAuthSearch(location.search, returnTo),
+        pathname,
+        search: buildAuthSearch(search, returnTo),
       })
     }
-  }, [session.data, session.isPending, navigate, location.pathname, location.search])
+  }, [session.data, session.isPending, navigate, pathname, search, hash])
 
   if (!session.data) {
     return null

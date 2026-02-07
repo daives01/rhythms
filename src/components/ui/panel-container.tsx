@@ -16,10 +16,7 @@ export function PanelContainer({ children, className, style, enableLines = true 
   const [bounds, setBounds] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null)
 
   useLayoutEffect(() => {
-    if (!enableLines) {
-      setBounds(null)
-      return
-    }
+    if (!enableLines) return
 
     const el = ref.current
     if (!el) return
