@@ -52,7 +52,7 @@ export function ResponsiveModal({
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
-        <SheetContent side="bottom" className="rounded-t-none">
+        <SheetContent side="bottom" className="rounded-t-none max-h-[85vh] overflow-hidden">
           <SheetHeader className="text-left border-b border-border pb-4">
             <SheetTitle className="text-xs uppercase tracking-widest font-normal">
               {title}
@@ -63,7 +63,7 @@ export function ResponsiveModal({
               </SheetDescription>
             )}
           </SheetHeader>
-          <div className="pt-4">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto pt-4 pr-1">{children}</div>
         </SheetContent>
       </Sheet>
     )
@@ -72,7 +72,7 @@ export function ResponsiveModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="rounded-none sm:max-w-[425px]">
+      <DialogContent className="rounded-none sm:max-w-[425px] flex max-h-[85vh] flex-col overflow-hidden">
         <DialogHeader className="border-b border-border pb-4">
           <DialogTitle className="text-xs uppercase tracking-widest font-normal">
             {title}
@@ -83,7 +83,7 @@ export function ResponsiveModal({
             </DialogDescription>
           )}
         </DialogHeader>
-        <div className="pt-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto pt-4 pr-1">{children}</div>
       </DialogContent>
     </Dialog>
   )

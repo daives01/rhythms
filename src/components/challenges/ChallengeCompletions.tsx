@@ -98,7 +98,7 @@ export function ChallengeCompletions({ challengeId }: { challengeId: Id<"challen
           Export CSV
         </Button>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
         {entries.map((entry) => (
           <div
             key={entry.play._id}
@@ -146,7 +146,7 @@ export function UserChallengeCompletions({ challengeId }: { challengeId: Id<"cha
       <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
         Your completions ({entries.length})
       </span>
-      <div className="flex flex-col gap-1">
+      <div className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1">
         {entries.map((entry) => (
           <div
             key={entry.play._id}
