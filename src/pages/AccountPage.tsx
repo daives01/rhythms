@@ -27,6 +27,12 @@ export function AccountPage({ mode = "page", onAuthSuccess }: AccountPageProps) 
   const hasIdentifier = authIdentifier.trim().length > 0
 
   useEffect(() => {
+    if (!session.data) {
+      hasHandledAuthRedirect.current = false
+    }
+  }, [session.data])
+
+  useEffect(() => {
     if (!session.data) return
     if (onAuthSuccess) {
       if (hasHandledAuthRedirect.current) return

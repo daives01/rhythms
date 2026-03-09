@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { ConvexError, v } from "convex/values"
+import { buildGroupListEntries } from "./group-list"
 import { requireCurrentUser, requireGroupAdmin, requireGroupMember } from "./groupMembers"
 
 const groupValidator = v.object({
@@ -340,6 +341,7 @@ export const listForUser = query({
     v.object({
       group: groupValidator,
       membership: groupMemberValidator,
+      challengeCount: v.number(),
     })
   ),
   handler: async (ctx) => {
@@ -353,12 +355,24 @@ export const listForUser = query({
       memberships.map((membership) => ctx.db.get(membership.groupId))
     )
 
-    return groups.map((group, index) => {
-      if (!group) {
-        throw new ConvexError({ code: "NOT_FOUND", message: "Group not found." })
-      }
-      return { group, membership: memberships[index] }
-    })
+    const challengeCounts = await Promise.all(
+      memberships.map((membership) =>
+        ctx.db
+          .query("challenges")
+          .withIndex("by_groupId_dueAt", (q) => q.eq("groupId", membership.groupId))
+          .collect()
+          .then((challenges) => challenges.length)
+      )
+    )
+
+    try {
+      return buildGroupListEntries(memberships, groups, challengeCounts)
+    } catch (error) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: error instanceof Error ? error.message : "Group not found.",
+      })
+    }
   },
 })
 

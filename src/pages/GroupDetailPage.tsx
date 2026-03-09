@@ -6,7 +6,6 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
-import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { encodeChallenge, generateSeed, type ChallengeData } from "@/lib/random"
@@ -347,8 +346,6 @@ export function GroupDetailPage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
-  const { isReady: isUserReady, user: currentUser } = useEnsureUser()
-  const canQuery = Boolean(session.data && isUserReady)
   
   const groupId = id as Id<"groups">
   const challengeParam = searchParams.get("challenge")
@@ -356,7 +353,7 @@ export function GroupDetailPage() {
   
   const groupDetail = useQuery(
     api.groups.getDetail,
-    canQuery && groupId ? { groupId, includePast: true } : "skip"
+    session.data && groupId ? { groupId, includePast: true } : "skip"
   ) as
     | {
         group: { name: string }
@@ -369,16 +366,17 @@ export function GroupDetailPage() {
 
   const challengeDetail = useQuery(
     api.challenges.get,
-    canQuery && challengeId ? { challengeId } : "skip"
+    session.data && challengeId ? { challengeId } : "skip"
   ) as ChallengeEntry | null | undefined
+  const currentUser = useQuery(api.users.getAuthUser, session.data ? {} : "skip")
   
   const createChallenge = useMutation(api.challenges.create)
   const updateChallenge = useMutation(api.challenges.update)
   const deleteChallenge = useMutation(api.challenges.delete_)
-  const playHistory = useQuery(api.playHistory.listForUser, canQuery ? { limit: 12 } : "skip")
+  const playHistory = useQuery(api.playHistory.listForUser, session.data ? { limit: 12 } : "skip")
   const groupCompletions = useQuery(
     api.playHistory.listForGroupByUser,
-    canQuery && groupId ? { groupId, limit: 200 } : "skip"
+    session.data && groupId ? { groupId, limit: 200 } : "skip"
   )
 
   const [isCreatingChallenge, setIsCreatingChallenge] = useState(false)
@@ -567,7 +565,7 @@ export function GroupDetailPage() {
     }
   }, [selectedChallenge])
 
-  if (session.isPending || (session.data && !isUserReady)) {
+  if (session.isPending) {
     return <AuthLoading label="Loading..." />
   }
 

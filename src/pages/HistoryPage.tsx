@@ -4,7 +4,6 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
-import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { encodeChallenge, type ChallengeData } from "@/lib/random"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
@@ -16,8 +15,6 @@ export function HistoryPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
-  const { isReady: isUserReady } = useEnsureUser()
-  const canQuery = Boolean(session.data && isUserReady)
   const {
     results: history,
     status,
@@ -25,12 +22,12 @@ export function HistoryPage() {
     isLoading,
   } = usePaginatedQuery(
     api.playHistory.listForUserPaginated,
-    canQuery ? {} : "skip",
+    session.data ? {} : "skip",
     { initialNumItems: 20 }
   )
   const includeTuplets = loadSettings().includeTuplets
 
-  if (session.isPending || (session.data && !isUserReady)) {
+  if (session.isPending) {
     return <AuthLoading label="Loading..." />
   }
 

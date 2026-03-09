@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
 import { authClient } from "@/lib/auth-client"
-import { useEnsureUser } from "@/lib/useEnsureUser"
 import { cn } from "@/lib/utils"
 import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
 import { api } from "../../convex/_generated/api"
@@ -43,11 +42,7 @@ interface GroupListEntry {
     _id: Id<"groupMembers">
     role: "admin" | "member"
   }
-}
-
-interface ChallengeEntry {
-  _id: Id<"challenges">
-  groupId: Id<"groups">
+  challengeCount: number
 }
 
 const DEFAULT_SETTINGS: StoredSettings = {
@@ -116,10 +111,7 @@ export function Game() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
-  const { isReady: isUserReady } = useEnsureUser()
-  const canQuery = Boolean(session.data && isUserReady)
-  const groups = useQuery(api.groups.listForUser, canQuery ? {} : "skip") as GroupListEntry[] | undefined
-  const challenges = useQuery(api.challenges.listForUser, canQuery ? {} : "skip") as ChallengeEntry[] | undefined
+  const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
 
   // Check for challenge in URL (shared challenge link)
   const challengeParam = searchParams.get("challenge")
@@ -193,10 +185,6 @@ export function Game() {
       setIncludeTuplets(challengeData.tuplets)
       setTimeout(() => setIsAnimatingSliders(false), 300)
     }
-  }
-
-  const getChallengeCount = (groupId: Id<"groups">): number => {
-    return challenges?.filter((c) => c.groupId === groupId).length ?? 0
   }
 
   return (
@@ -466,7 +454,7 @@ export function Game() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                        <span>{getChallengeCount(entry.group._id)} challenges</span>
+                        <span>{entry.challengeCount} challenges</span>
                       </div>
                     </button>
                   ))}

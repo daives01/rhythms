@@ -7,6 +7,7 @@ import { createElement } from "react"
 import { components } from "./_generated/api"
 import type { DataModel } from "./_generated/dataModel"
 import authConfig from "./auth.config"
+import { buildAppUserSyncChange } from "./auth-user-sync"
 import ResetPasswordEmail from "./emails/ResetPasswordEmail"
 import VerifyEmail from "./emails/VerifyEmail"
 
@@ -34,6 +35,52 @@ export const authComponent = createClient<DataModel>(components.betterAuth, {
   verbose: false,
 })
 
+type AppUserDb = {
+  query: (table: "users") => {
+    withIndex: (
+      index: "by_authUserId",
+      cb: (q: { eq: (field: "authUserId", value: string) => unknown }) => unknown
+    ) => {
+      unique: () => Promise<{ _id: string; email?: string; name?: string } | null>
+    }
+  }
+  insert: (
+    table: "users",
+    value: {
+      authUserId: string
+      email?: string
+      name?: string
+      premium: boolean
+      createdAt: number
+    }
+  ) => Promise<unknown>
+  patch: (id: string, value: { email?: string; name?: string }) => Promise<void>
+}
+
+const syncAppUser = async (
+  ctx: GenericCtx<DataModel>,
+  authUser: { id: string; email?: string | null; name?: string | null }
+) => {
+  const db = (ctx as { db?: AppUserDb }).db
+  if (!db) {
+    return
+  }
+  const existing = await db
+    .query("users")
+    .withIndex("by_authUserId", (q) => q.eq("authUserId", authUser.id))
+    .unique()
+  const change = buildAppUserSyncChange(existing, authUser)
+
+  if (change.kind === "insert") {
+    await db.insert("users", change.value)
+    return
+  }
+
+  if (change.kind === "patch") {
+    await db.patch(change.userId, change.value)
+  }
+}
+
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
   ({
     baseURL: siteUrl,
@@ -46,6 +93,30 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       },
     },
     plugins: [crossDomain({ siteUrl: clientUrl || siteUrl }), convex({ authConfig }), username()],
+    databaseHooks: {
+      user: {
+        create: {
+          after: async (user) => {
+            await syncAppUser(ctx, user)
+          },
+        },
+        update: {
+          after: async (user) => {
+            await syncAppUser(ctx, user)
+          },
+        },
+      },
+      session: {
+        create: {
+          after: async (session, context) => {
+            const authUser = await context?.context.internalAdapter.findUserById(session.userId)
+            if (authUser) {
+              await syncAppUser(ctx, authUser)
+            }
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,

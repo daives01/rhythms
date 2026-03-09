@@ -1,7 +1,7 @@
 import { query, mutation } from "./_generated/server"
 import { ConvexError, v } from "convex/values"
 import type { Doc } from "./_generated/dataModel"
-import { authComponent, createAuth } from "./auth"
+import { authComponent } from "./auth"
 
 const userValidator = v.object({
   _id: v.id("users"),
@@ -85,11 +85,10 @@ export const getAuthSession = query({
     })
   ),
   handler: async (ctx) => {
-    const { auth, headers } = await authComponent.getAuth(createAuth, ctx)
-    const session = await auth.api.getSession({ headers })
-    if (!session?.user) return null
+    const authUser = await authComponent.safeGetAuthUser(ctx)
+    if (!authUser) return null
 
-    const authUserId = session.user.id
+    const authUserId = authUser._id
     const user = await ctx.db
       .query("users")
       .withIndex("by_authUserId", (q) => q.eq("authUserId", authUserId))

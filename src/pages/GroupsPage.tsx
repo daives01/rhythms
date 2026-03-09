@@ -6,7 +6,6 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { AuthLoading } from "@/components/auth/AuthLoading"
-import { useEnsureUser } from "@/lib/useEnsureUser"
 import { authClient } from "@/lib/auth-client"
 import { buildAuthSearch, getReturnToFromLocation } from "@/lib/auth-redirect"
 import { cn } from "@/lib/utils"
@@ -24,22 +23,15 @@ interface GroupListEntry {
     _id: Id<"groupMembers">
     role: "admin" | "member"
   }
-}
-
-interface ChallengeEntry {
-  _id: Id<"challenges">
-  groupId: Id<"groups">
+  challengeCount: number
 }
 
 export function GroupsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
-  const { isReady: isUserReady } = useEnsureUser()
-  const canQuery = Boolean(session.data && isUserReady)
-  const groups = useQuery(api.groups.listForUser, canQuery ? {} : "skip") as GroupListEntry[] | undefined
-  const challenges = useQuery(api.challenges.listForUser, canQuery ? {} : "skip") as ChallengeEntry[] | undefined
-  const authSession = useQuery(api.users.getAuthSession, canQuery ? {} : "skip")
+  const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
+  const authUser = useQuery(api.users.getAuthUser, session.data ? {} : "skip")
   
   const createGroup = useMutation(api.groups.create)
 
@@ -62,13 +54,9 @@ export function GroupsPage() {
     }
   }
 
-  const getChallengeCount = (groupId: Id<"groups">): number => {
-    return challenges?.filter((c) => c.groupId === groupId).length ?? 0
-  }
+  const isPremium = Boolean(authUser?.premium)
 
-  const isPremium = Boolean(authSession?.premium)
-
-  if (session.isPending || (session.data && !isUserReady)) {
+  if (session.isPending) {
     return <AuthLoading label="Loading..." />
   }
 
@@ -219,7 +207,7 @@ export function GroupsPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                            <span>{getChallengeCount(entry.group._id)} challenges</span>
+                            <span>{entry.challengeCount} challenges</span>
                           </div>
                         </button>
                       ))}

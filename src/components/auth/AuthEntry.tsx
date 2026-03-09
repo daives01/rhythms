@@ -21,7 +21,7 @@ export function AuthEntry() {
   const location = useLocation()
   const navigate = useNavigate()
   const session = authClient.useSession()
-  const authSession = useQuery(api.users.getAuthSession, session.data ? {} : "skip")
+  const authUser = useQuery(api.users.getAuthUser, session.data ? {} : "skip")
   const createGroup = useMutation(api.groups.create)
   const hasHandledAuthRedirect = useRef(false)
   const [open, setOpen] = useState(false)
@@ -44,10 +44,17 @@ export function AuthEntry() {
   }, [open])
 
   useEffect(() => {
+    if (!session.data) {
+      hasHandledAuthRedirect.current = false
+    }
+  }, [session.data])
+
+  useEffect(() => {
     if (session.isPending) return
     const params = new URLSearchParams(location.search)
     const wantsAuth = params.get(AUTH_MODAL_PARAM) === "1"
     if (!wantsAuth) {
+      hasHandledAuthRedirect.current = false
       setAuthOpen(false)
       return
     }
@@ -125,7 +132,7 @@ export function AuthEntry() {
 
       {session.data && open && (
         <div className="absolute right-0 mt-2 w-44 border border-border bg-muted shadow-[0_6px_18px_rgba(0,0,0,0.5)]">
-          {authSession?.premium && (
+          {authUser?.premium && (
             <button
               type="button"
               onClick={() => {
@@ -173,7 +180,7 @@ export function AuthEntry() {
         </div>
       )}
 
-      {session.data && authSession?.premium && (
+      {session.data && authUser?.premium && (
         <ResponsiveModal
           open={isCreateGroupOpen}
           onOpenChange={setIsCreateGroupOpen}
@@ -211,6 +218,7 @@ export function AuthEntry() {
         onOpenChange={(nextOpen) => {
           setAuthOpen(nextOpen)
           if (!nextOpen) {
+            hasHandledAuthRedirect.current = false
             navigate({
               pathname: location.pathname,
               search: stripAuthSearch(location.search),
