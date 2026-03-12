@@ -32,11 +32,83 @@ export interface RuntimeBar {
   width?: number  // calculated width for variable-width rendering
 }
 
+export type ExerciseMode = "rhythm" | "melody"
+
+export type KeySignature = "C" | "G" | "D" | "A" | "E" | "B" | "F#" | "F" | "Bb" | "Eb"
+
+export type MelodyDifficulty = "easy" | "medium" | "hard"
+
+export type PlaybackMode = "metronome" | "melody" | "both"
+
+export type MelodyLayoutMode = "live" | "page"
+
+export type MelodySessionMode = "endless" | "exercise"
+
+export type InstrumentTransposition = "concert" | "bb" | "eb" | "f"
+
+export type MelodyClef = "treble" | "bass" | "alto" | "tenor"
+
+export interface MelodyEvent {
+  beatIndex: number
+  durationBeats: number
+  midi: number
+  staffKey: string
+  noteName: string
+  scaleDegreeOffset: number
+}
+
+export interface RuntimeMelodyEvent extends MelodyEvent {
+  id: string
+  timeSec: number
+  durationSec: number
+  frequency: number
+}
+
+export interface MelodyBar {
+  id: string
+  events: MelodyEvent[]
+}
+
+export interface RuntimeMelodyBar {
+  id: string
+  barIndex: number
+  events: RuntimeMelodyEvent[]
+  width?: number
+}
+
+export interface MelodyPracticeConfig {
+  seed: string
+  bpm: number
+  difficulty: MelodyDifficulty
+  keySignature: KeySignature
+  accidentals: boolean
+  playbackMode: PlaybackMode
+  melodyVolume: number
+  instrument: InstrumentTransposition
+  clef: MelodyClef
+  rangeLow: number
+  rangeHigh: number
+  viewMode: MelodyLayoutMode
+  sessionMode: MelodySessionMode
+  exerciseBars: number
+}
+
 export interface GameScore {
   barsSurvived: number
   beatsSurvived: number
   totalHits: number
   timeSurvived: number
+}
+
+export interface MelodyGameScore {
+  totalNotes: number
+  correctNotes: number
+  missedNotes: number
+  wrongDetections: number
+  averageResponseMs: number
+  timeSurvived: number
+  barsSurvived: number
+  accuracy: number
 }
 
 export type HitResult = "hit" | "miss" | "extra"

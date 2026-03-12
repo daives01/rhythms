@@ -1,12 +1,8 @@
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Gauge, Signal, Volume2, Users } from "lucide-react"
+import { Gauge, Signal, Volume2, Users, Music4 } from "lucide-react"
 import { useQuery } from "convex/react"
 import { HorizontalSwitch } from "@/components/ui/horizontal-switch"
-import type { Difficulty } from "@/types"
-import { transportEngine } from "@/engines/TransportEngine"
-import { Slider } from "@/components/ui/slider"
-import { TipModal } from "@/components/ui/tip-modal"
 import { AmpSwitch } from "@/components/ui/amp-switch"
 import { SoundboardButton } from "@/components/ui/soundboard-button"
 import { PlayButton } from "@/components/ui/play-button"
@@ -14,22 +10,16 @@ import { PanelContainer } from "@/components/ui/panel-container"
 import { Button } from "@/components/ui/button"
 import { PageBackButton } from "@/components/ui/page-back-button"
 import { ResponsiveModal } from "@/components/ui/responsive-modal"
+import { Slider } from "@/components/ui/slider"
+import { TipModal } from "@/components/ui/tip-modal"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-import { generateSeed, encodeChallenge, decodeChallenge, type ChallengeData } from "@/lib/random"
+import { calculateBPMColor, getDifficultyFromValue } from "@/lib/format"
+import { decodeChallenge, encodeChallenge, generateSeed, type ChallengeData } from "@/lib/random"
+import { hasCalibrated, loadSettings, saveSettings } from "@/lib/settings"
+import { transportEngine } from "@/engines/TransportEngine"
 import { api } from "../../convex/_generated/api"
 import type { Id } from "../../convex/_generated/dataModel"
-
-const LATENCY_OFFSET_KEY = "rhythm-latency-offset"
-const SETTINGS_KEY = "rhythm-settings"
-
-interface StoredSettings {
-  bpm: number
-  difficultyValue: number
-  playAlongVolume: number
-  groupMode: boolean
-  includeTuplets: boolean
-}
 
 interface GroupListEntry {
   group: {
@@ -45,89 +35,28 @@ interface GroupListEntry {
   challengeCount: number
 }
 
-const DEFAULT_SETTINGS: StoredSettings = {
-  bpm: 120,
-  difficultyValue: 0,
-  playAlongVolume: 0.5,
-  groupMode: false,
-  includeTuplets: false,
-}
-
-function loadSettings(): StoredSettings {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY)
-    if (!stored) return DEFAULT_SETTINGS
-    const parsed = JSON.parse(stored)
-    return { ...DEFAULT_SETTINGS, ...parsed }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
-
-function saveSettings(settings: Partial<StoredSettings>): void {
-  try {
-    const current = loadSettings()
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...settings }))
-  } catch {
-    // ignore
-  }
-}
-
-function hasCalibrated(): boolean {
-  try {
-    return localStorage.getItem(LATENCY_OFFSET_KEY) !== null
-  } catch {
-    return false
-  }
-}
-
-const getDifficultyFromValue = (v: number): Difficulty => {
-  if (v < 0.33) return "easy"
-  if (v < 0.67) return "medium"
-  return "hard"
-}
-
-const calculateBPMColor = (bpm: number): string => {
-  const minBpm = 60
-  const maxBpm = 180
-  const normalized = Math.min(Math.max((bpm - minBpm) / (maxBpm - minBpm), 0), 1)
-
-  if (normalized <= 0.5) {
-    const p = normalized / 0.5
-    const r = Math.round(52 + p * (251 - 52))
-    const g = Math.round(211 + p * (191 - 211))
-    const b = Math.round(153 + p * (36 - 153))
-    return `rgb(${r}, ${g}, ${b})`
-  } else {
-    const p = (normalized - 0.5) / 0.5
-    const r = Math.round(251 + p * (248 - 251))
-    const g = Math.round(191 + p * (113 - 191))
-    const b = Math.round(36 + p * (113 - 36))
-    return `rgb(${r}, ${g}, ${b})`
-  }
-}
-
 export function Game() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const session = authClient.useSession()
   const groups = useQuery(api.groups.listForUser, session.data ? {} : "skip") as GroupListEntry[] | undefined
 
-  // Check for challenge in URL (shared challenge link)
   const challengeParam = searchParams.get("challenge")
   const challengeData = challengeParam ? decodeChallenge(challengeParam) : null
+  const isGroupChallenge = Boolean(challengeData?.groupId && challengeData?.challengeId)
+  const showChallengeLanding = !!challengeData && !isGroupChallenge
 
   const [bpm, setBpm] = useState(() => challengeData?.bpm ?? loadSettings().bpm)
   const [difficultyValue, setDifficultyValue] = useState(() => challengeData?.difficulty ?? loadSettings().difficultyValue)
-  const difficulty = getDifficultyFromValue(difficultyValue)
-
-  const [isCalibrated] = useState(hasCalibrated)
   const [groupMode, setGroupMode] = useState(() => loadSettings().groupMode)
   const [includeTuplets, setIncludeTuplets] = useState(() => challengeData?.tuplets ?? loadSettings().includeTuplets)
   const [playAlongVolume, setPlayAlongVolume] = useState(() => loadSettings().playAlongVolume)
   const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false)
+  const [isAnimatingSliders, setIsAnimatingSliders] = useState(false)
 
-  // iOS ringer warning
+  const difficulty = getDifficultyFromValue(difficultyValue)
+  const [isCalibrated] = useState(hasCalibrated)
+
   const IOS_RINGER_KEY = "ios-ringer-dismissed"
   const IOS_RINGER_SESSION_KEY = "ios-ringer-session-shown"
   const [showRingerWarning, setShowRingerWarning] = useState(() => {
@@ -150,8 +79,7 @@ export function Game() {
     saveSettings({ bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets })
   }, [bpm, difficultyValue, playAlongVolume, groupMode, includeTuplets])
 
-  const startGame = (challenge?: ChallengeData) => {
-    // Create challenge from settings if not provided
+  const startRhythmGame = (challenge?: ChallengeData) => {
     const gameChallenge: ChallengeData = challenge ?? {
       seed: generateSeed(),
       bpm,
@@ -159,23 +87,13 @@ export function Game() {
       tuplets: includeTuplets,
     }
 
-    // Unlock audio in click handler context (required for iOS/Safari)
     transportEngine.unlockAudio()
-
-    // Navigate to play page with challenge (pass state to indicate audio was unlocked via user gesture)
     const encoded = encodeChallenge(gameChallenge)
     navigate(`/play?challenge=${encoded}`, { state: { audioUnlocked: true } })
   }
 
-  const isGroupChallenge = Boolean(challengeData?.groupId && challengeData?.challengeId)
-  // Show challenge landing page if there's a valid challenge in URL
-  const showChallengeLanding = !!challengeData && !isGroupChallenge
-
-  // Challenge mode toggle - when on, settings are locked to challenge values
   const [challengeMode, setChallengeMode] = useState(true)
-  const [isAnimatingSliders, setIsAnimatingSliders] = useState(false)
 
-  // Snap settings to challenge values when challenge mode is enabled
   const handleChallengeModeChange = (enabled: boolean) => {
     setChallengeMode(enabled)
     if (enabled && challengeData) {
@@ -197,11 +115,9 @@ export function Game() {
       }}
     >
       <main className="flex-1 flex flex-col relative overflow-x-clip overflow-y-auto">
-        {/* Challenge Landing Page */}
         {showChallengeLanding && challengeData && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
             <PageBackButton to="/" />
-            {/* Left column: Title + Challenge Toggle */}
             <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center animate-fade-in-up">
               <h1
                 className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground uppercase"
@@ -217,9 +133,7 @@ export function Game() {
               />
             </div>
 
-            {/* Right column: Mixer panel (same as normal menu) */}
             <PanelContainer className="w-full landscape:w-[480px] landscape:shrink-0 animate-fade-in-up">
-              {/* Fader controls */}
               <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
                 <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
                 <Slider
@@ -262,18 +176,11 @@ export function Game() {
                 />
               </div>
 
-              {/* Full-width divider */}
               <div className="h-px bg-border w-full" />
 
-              {/* Controls row */}
               <div className="flex items-stretch">
-                {/* Left group: switches + calibrate */}
                 <div className="flex-1 p-6 flex items-start justify-evenly">
-                  <AmpSwitch
-                    label="Practice"
-                    checked={groupMode}
-                    onCheckedChange={setGroupMode}
-                  />
+                  <AmpSwitch label="Practice" checked={groupMode} onCheckedChange={setGroupMode} />
                   <AmpSwitch
                     label="Tuplets"
                     checked={includeTuplets}
@@ -288,23 +195,27 @@ export function Game() {
                   />
                 </div>
 
-                {/* Vertical divider */}
                 <div className="w-px bg-border" />
 
-                {/* Right group: play */}
                 <div className="p-6 flex items-start justify-center">
-                  <PlayButton onClick={() => challengeMode ? startGame(challengeData) : startGame()} />
+                  <PlayButton onClick={() => (challengeMode ? startRhythmGame(challengeData) : startRhythmGame())} />
                 </div>
               </div>
             </PanelContainer>
           </div>
         )}
 
-        {/* Normal Menu */}
         {!showChallengeLanding && (
           <div className="flex-1 flex flex-col landscape:flex-row items-center justify-center p-4 landscape:px-8 landscape:py-3 gap-6 landscape:gap-12 max-w-lg landscape:max-w-5xl mx-auto w-full relative">
-            {/* Left column: Title */}
-            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/melody")}
+              className="fixed left-4 top-4 z-50 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            >
+              <Music4 className="w-3 h-3" />
+              Melody
+            </button>
+            <div className="flex flex-col items-center landscape:items-start landscape:flex-1 landscape:justify-center gap-4">
               <h1
                 className="text-3xl landscape:text-4xl font-display font-bold tracking-tight text-foreground animate-fade-in-up uppercase"
                 style={{ letterSpacing: "0.1em" }}
@@ -331,94 +242,73 @@ export function Game() {
               </Button>
             </div>
 
-            {/* Right column: Mixer panel */}
             <div className="w-full landscape:w-[480px] landscape:shrink-0 flex flex-col gap-4 animate-fade-in-up">
               <PanelContainer>
-              {/* Fader controls */}
-              <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
-                <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
-                <Slider
-                  value={bpm}
-                  onValueChange={setBpm}
-                  min={60}
-                  max={180}
-                  step={5}
-                  icon={Gauge}
-                  label="BPM"
-                  color={calculateBPMColor(bpm)}
-                  units={["60", "120", "180"]}
-                />
-                <Slider
-                  value={difficultyValue}
-                  onValueChange={setDifficultyValue}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  icon={Signal}
-                  label="Level"
-                  color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
-                  units={["EASY", "NORMAL", "HARD"]}
-                  snapPoints={[0, 0.5, 1]}
-                />
-                <Slider
-                  value={playAlongVolume}
-                  onValueChange={setPlayAlongVolume}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  icon={Volume2}
-                  label="Monitor"
-                  color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
-                  units={["0%", "50%", "100%"]}
-                />
-              </div>
-
-              {/* Full-width divider */}
-              <div className="h-px bg-border w-full" />
-
-              {/* Controls row */}
-              <div className="flex items-stretch">
-                {/* Left group: switches + calibrate */}
-                <div className="flex-1 p-6 flex items-start justify-evenly">
-                  <AmpSwitch
-                    label="Practice"
-                    checked={groupMode}
-                    onCheckedChange={setGroupMode}
+                <div className="py-6 pl-10 pr-6 flex flex-col gap-3 relative">
+                  <div className="absolute top-0 bottom-0 left-10 w-px bg-border" />
+                  <Slider
+                    value={bpm}
+                    onValueChange={setBpm}
+                    min={60}
+                    max={180}
+                    step={5}
+                    icon={Gauge}
+                    label="BPM"
+                    color={calculateBPMColor(bpm)}
+                    units={["60", "120", "180"]}
                   />
-                  <AmpSwitch
-                    label="Tuplets"
-                    checked={includeTuplets}
-                    onCheckedChange={setIncludeTuplets}
+                  <Slider
+                    value={difficultyValue}
+                    onValueChange={setDifficultyValue}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    icon={Signal}
+                    label="Level"
+                    color={difficulty === "easy" ? "rgb(52, 211, 153)" : difficulty === "medium" ? "rgb(251, 191, 36)" : "rgb(248, 113, 113)"}
+                    units={["EASY", "NORMAL", "HARD"]}
+                    snapPoints={[0, 0.5, 1]}
                   />
-                  <SoundboardButton
-                    label="Calibrate"
-                    onClick={() => navigate("/calibration")}
-                    active={isCalibrated}
-                    warning={!isCalibrated}
+                  <Slider
+                    value={playAlongVolume}
+                    onValueChange={setPlayAlongVolume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    icon={Volume2}
+                    label="Monitor"
+                    color={playAlongVolume === 0 ? "rgb(248, 113, 113)" : "rgb(52, 211, 153)"}
+                    units={["0%", "50%", "100%"]}
                   />
                 </div>
 
-                {/* Vertical divider */}
-                <div className="w-px bg-border" />
+                <div className="h-px bg-border w-full" />
 
-                {/* Right group: play */}
-                <div className="p-6 flex items-start justify-center">
-                  <PlayButton onClick={() => startGame()} />
+                <div className="flex items-stretch">
+                  <div className="flex-1 p-6 flex items-start justify-evenly">
+                    <AmpSwitch label="Practice" checked={groupMode} onCheckedChange={setGroupMode} />
+                    <AmpSwitch label="Tuplets" checked={includeTuplets} onCheckedChange={setIncludeTuplets} />
+                    <SoundboardButton
+                      label="Calibrate"
+                      onClick={() => navigate("/calibration")}
+                      active={isCalibrated}
+                      warning={!isCalibrated}
+                    />
+                  </div>
+
+                  <div className="w-px bg-border" />
+
+                  <div className="p-6 flex items-start justify-center">
+                    <PlayButton onClick={() => startRhythmGame()} />
+                  </div>
                 </div>
-              </div>
               </PanelContainer>
-
             </div>
-
           </div>
         )}
 
         {session.data ? (
-          <ResponsiveModal
-            open={isGroupsModalOpen}
-            onOpenChange={setIsGroupsModalOpen}
-            title="My groups"
-          >
+          <ResponsiveModal open={isGroupsModalOpen} onOpenChange={setIsGroupsModalOpen} title="My groups">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-muted-foreground" />
@@ -437,19 +327,18 @@ export function Game() {
                         setIsGroupsModalOpen(false)
                         navigate(`/groups/${entry.group._id}`)
                       }}
-                      className={cn(
-                        "border border-border p-3 text-left",
-                        "hover:border-foreground/40 transition-colors"
-                      )}
+                      className={cn("border border-border p-3 text-left", "hover:border-foreground/40 transition-colors")}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-foreground uppercase">{entry.group.name}</span>
-                        <span className={cn(
-                          "text-[9px] uppercase tracking-wider px-2 py-0.5 border",
-                          entry.membership.role === "admin"
-                            ? "border-foreground/40 text-foreground"
-                            : "border-border text-muted-foreground"
-                        )}>
+                        <span
+                          className={cn(
+                            "text-[9px] uppercase tracking-wider px-2 py-0.5 border",
+                            entry.membership.role === "admin"
+                              ? "border-foreground/40 text-foreground"
+                              : "border-border text-muted-foreground"
+                          )}
+                        >
                           {entry.membership.role}
                         </span>
                       </div>
@@ -468,7 +357,6 @@ export function Game() {
           </ResponsiveModal>
         ) : null}
 
-        {/* iOS Ringer Warning Modal */}
         {showRingerWarning && (
           <TipModal
             title="Playing on iOS?"

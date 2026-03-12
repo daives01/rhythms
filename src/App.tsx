@@ -5,6 +5,16 @@ import { AuthLoading } from "./components/auth/AuthLoading"
 import { AuthEntry } from "./components/auth/AuthEntry"
 
 const PlayPage = lazy(() => import("./pages/PlayPage").then((module) => ({ default: module.PlayPage })))
+const MelodyPage = lazy(() => import("./pages/MelodyPage").then((module) => ({ default: module.MelodyPage })))
+const MelodyPlayPage = lazy(() =>
+  import("./pages/MelodyPlayPage").then((module) => ({ default: module.MelodyPlayPage }))
+)
+const MelodyGameOverPage = lazy(() =>
+  import("./pages/MelodyGameOverPage").then((module) => ({ default: module.MelodyGameOverPage }))
+)
+const MelodySheetPage = lazy(() =>
+  import("./pages/MelodySheetPage").then((module) => ({ default: module.MelodySheetPage }))
+)
 const CalibrationPage = lazy(() =>
   import("./pages/CalibrationPage").then((module) => ({ default: module.CalibrationPage }))
 )
@@ -28,7 +38,12 @@ const GroupsPage = lazy(() => import("./pages/GroupsPage").then((module) => ({ d
 
 function SupportLink() {
   const location = useLocation()
-  if (location.pathname === "/play") return null
+  if (
+    location.pathname === "/play" ||
+    location.pathname === "/melody-play" ||
+    location.pathname === "/melody-game-over" ||
+    location.pathname === "/melody-sheet"
+  ) return null
   
   return (
     <a
@@ -50,7 +65,11 @@ function App() {
       <Suspense fallback={<AuthLoading />}>
         <Routes>
           <Route path="/" element={<Game />} />
+          <Route path="/melody" element={<MelodyPage />} />
           <Route path="/play" element={<PlayPage />} />
+          <Route path="/melody-play" element={<MelodyPlayPage />} />
+          <Route path="/melody-game-over" element={<MelodyGameOverPage />} />
+          <Route path="/melody-sheet" element={<MelodySheetPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
           <Route path="/game-over" element={<GameOverPage />} />
           <Route path="/history" element={<HistoryPage />} />

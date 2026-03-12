@@ -17,10 +17,14 @@ export class TransportEngine {
   private clickFreqHigh: number = 1000
   private clickFreqLow: number = 800
   private clickDuration: number = 0.05
+  private metronomeVolume: number = 1
 
   private rhythmSoundVolume: number = 0
   private rhythmOnsets: { timeSec: number; scheduled: boolean }[] = []
   private scheduledOnsetTimes: Set<number> = new Set()
+  private melodySoundVolume: number = 0
+  private melodyEvents: { id: string; timeSec: number; durationSec: number; frequency: number; scheduled: boolean }[] = []
+  private scheduledMelodyEventIds: Set<string> = new Set()
 
   /**
    * Unlock audio for iOS/Safari. MUST be called synchronously within a user gesture
@@ -153,6 +157,10 @@ export class TransportEngine {
     this.rhythmSoundVolume = Math.max(0, Math.min(1, volume))
   }
 
+  setMetronomeVolume(volume: number): void {
+    this.metronomeVolume = Math.max(0, Math.min(1, volume))
+  }
+
   setRhythmOnsets(onsets: { timeSec: number }[]): void {
     this.rhythmOnsets = onsets.map((o) => ({
       timeSec: o.timeSec,
@@ -160,9 +168,25 @@ export class TransportEngine {
     }))
   }
 
+  setMelodySoundVolume(volume: number): void {
+    this.melodySoundVolume = Math.max(0, Math.min(1, volume))
+  }
+
+  setMelodyEvents(events: { id: string; timeSec: number; durationSec: number; frequency: number }[]): void {
+    this.melodyEvents = events.map((event) => ({
+      ...event,
+      scheduled: this.scheduledMelodyEventIds.has(event.id),
+    }))
+  }
+
   clearRhythmOnsets(): void {
     this.rhythmOnsets = []
     this.scheduledOnsetTimes.clear()
+  }
+
+  clearMelodyEvents(): void {
+    this.melodyEvents = []
+    this.scheduledMelodyEventIds.clear()
   }
 
   async start(): Promise<void> {
@@ -184,6 +208,7 @@ export class TransportEngine {
       this.schedulerTimer = null
     }
     this.clearRhythmOnsets()
+    this.clearMelodyEvents()
   }
 
   private scheduler(): void {
@@ -208,6 +233,16 @@ export class TransportEngine {
       }
     }
 
+    if (this.melodySoundVolume > 0) {
+      for (const event of this.melodyEvents) {
+        if (!event.scheduled && event.timeSec < currentTime + this.lookahead && event.timeSec > currentTime - 0.1) {
+          this.scheduleMelodySound(event.timeSec, event.frequency, event.durationSec)
+          event.scheduled = true
+          this.scheduledMelodyEventIds.add(event.id)
+        }
+      }
+    }
+
     this.schedulerTimer = window.setTimeout(
       () => this.scheduler(),
       this.scheduleInterval
@@ -215,7 +250,7 @@ export class TransportEngine {
   }
 
   private scheduleClick(time: number, beatIndex: number): void {
-    if (!this.audioContext) return
+    if (!this.audioContext || this.metronomeVolume <= 0) return
 
     const isCountIn = beatIndex < this.countInBeats
     const beatInBar = beatIndex % 4
@@ -230,7 +265,7 @@ export class TransportEngine {
     osc.frequency.value = isAccent ? this.clickFreqHigh : this.clickFreqLow
     osc.type = "square"
 
-    const volume = isCountIn ? 0.3 : 0.15
+    const volume = (isCountIn ? 0.3 : 0.15) * this.metronomeVolume
     gain.gain.setValueAtTime(volume, time)
     gain.gain.exponentialRampToValueAtTime(0.001, time + this.clickDuration)
 
@@ -266,6 +301,29 @@ export class TransportEngine {
 
     osc.start(time)
     osc.stop(time + 0.03)
+  }
+
+  private scheduleMelodySound(time: number, frequency: number, durationSec: number): void {
+    if (!this.audioContext || this.melodySoundVolume <= 0) return
+
+    const osc = this.audioContext.createOscillator()
+    const gain = this.audioContext.createGain()
+    const filter = this.audioContext.createBiquadFilter()
+
+    osc.type = "triangle"
+    osc.frequency.setValueAtTime(frequency, time)
+    filter.type = "lowpass"
+    filter.frequency.setValueAtTime(2600, time)
+    gain.gain.setValueAtTime(0.0001, time)
+    gain.gain.linearRampToValueAtTime(0.22 * this.melodySoundVolume, time + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + Math.max(0.1, durationSec * 0.92))
+
+    osc.connect(filter)
+    filter.connect(gain)
+    gain.connect(this.audioContext.destination)
+
+    osc.start(time)
+    osc.stop(time + Math.max(0.12, durationSec))
   }
 
   private notifyBeat(time: number, beatIndex: number): void {

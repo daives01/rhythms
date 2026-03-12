@@ -1,3 +1,13 @@
+import type {
+  InstrumentTransposition,
+  KeySignature,
+  MelodyClef,
+  MelodyDifficulty,
+  MelodyLayoutMode,
+  MelodySessionMode,
+  PlaybackMode,
+} from "@/types"
+
 // Mulberry32 - a fast, high-quality 32-bit PRNG
 // Deterministic: same seed always produces the same sequence
 function mulberry32(seed: number): () => number {
@@ -22,6 +32,23 @@ export interface ChallengeData {
   tuplets: boolean
   groupId?: string        // Optional: group context for tracking
   challengeId?: string    // Optional: challenge context for tracking
+}
+
+export interface MelodyShareData {
+  seed: string
+  bpm: number
+  difficulty: MelodyDifficulty
+  keySignature: KeySignature
+  accidentals: boolean
+  playbackMode: PlaybackMode
+  melodyVolume: number
+  instrument: InstrumentTransposition
+  clef: MelodyClef
+  rangeLow: number
+  rangeHigh: number
+  viewMode: MelodyLayoutMode
+  sessionMode: MelodySessionMode
+  exerciseBars: number
 }
 
 // Encode challenge data to a URL-safe base64 string
@@ -59,6 +86,57 @@ export function decodeChallenge(encoded: string): ChallengeData | null {
       tuplets: parsed.t === 1,
       groupId: parsed.g,
       challengeId: parsed.c,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function encodeMelodyConfig(data: MelodyShareData): string {
+  const payload = {
+    s: data.seed,
+    b: data.bpm,
+    d: data.difficulty,
+    k: data.keySignature,
+    a: data.accidentals ? 1 : 0,
+    p: data.playbackMode,
+    v: Math.round(data.melodyVolume * 100),
+    i: data.instrument,
+    c: data.clef,
+    r1: data.rangeLow,
+    r2: data.rangeHigh,
+    l: data.viewMode,
+    m: data.sessionMode,
+    x: data.exerciseBars,
+  }
+
+  const json = JSON.stringify(payload)
+  return btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+export function decodeMelodyConfig(encoded: string): MelodyShareData | null {
+  try {
+    let base64 = encoded.replace(/-/g, "+").replace(/_/g, "/")
+    while (base64.length % 4) base64 += "="
+
+    const json = atob(base64)
+    const parsed = JSON.parse(json)
+
+    return {
+      seed: parsed.s,
+      bpm: parsed.b,
+      difficulty: parsed.d,
+      keySignature: parsed.k,
+      accidentals: parsed.a === 1,
+      playbackMode: parsed.p,
+      melodyVolume: parsed.v / 100,
+      instrument: parsed.i ?? "concert",
+      clef: parsed.c ?? "treble",
+      rangeLow: parsed.r1 ?? 55,
+      rangeHigh: parsed.r2 ?? 81,
+      viewMode: parsed.l === "page" ? "page" : "live",
+      sessionMode: parsed.m ?? "endless",
+      exerciseBars: parsed.x ?? 16,
     }
   } catch {
     return null

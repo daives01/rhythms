@@ -132,12 +132,14 @@ export function PlayPage() {
 
     const startGame = async () => {
       transportEngine.setBpm(gameBpm)
+      transportEngine.setMetronomeVolume(1)
       rhythmBuffer.setDifficulty(gameDifficulty)
       rhythmBuffer.setIncludeTuplets(gameTuplets)
 
       judgeEngine.setBpm(gameBpm)
       judgeEngine.setLatencyOffset(latencyOffset)
       transportEngine.setRhythmSoundVolume(playAlongVolume)
+      transportEngine.setMelodySoundVolume(0)
 
       await transportEngine.start()
 

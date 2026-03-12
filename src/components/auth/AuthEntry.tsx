@@ -70,7 +70,7 @@ export function AuthEntry() {
     setAuthOpen(true)
   }, [location.search, navigate, session.data, session.isPending])
 
-  if (location.pathname === "/play") {
+  if (location.pathname === "/play" || location.pathname === "/melody-sheet") {
     return null
   }
 

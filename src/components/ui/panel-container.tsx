@@ -50,10 +50,10 @@ export function PanelContainer({ children, className, style, enableLines = true 
     <div ref={ref} className={cn("relative", className)} style={style}>
       {enableLines && bounds && createPortal(
         <>
-          <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.top }} />
-          <div className="fixed left-0 right-0 h-px bg-border pointer-events-none" style={{ top: bounds.bottom }} />
-          <div className="fixed top-0 bottom-0 w-px bg-border pointer-events-none" style={{ left: bounds.left }} />
-          <div className="fixed top-0 bottom-0 w-px bg-border pointer-events-none" style={{ left: bounds.right }} />
+          <div className="fixed left-0 right-0 h-px bg-border pointer-events-none z-40" style={{ top: bounds.top }} />
+          <div className="fixed left-0 right-0 h-px bg-border pointer-events-none z-40" style={{ top: bounds.bottom }} />
+          <div className="fixed top-0 bottom-0 w-px bg-border pointer-events-none z-40" style={{ left: bounds.left }} />
+          <div className="fixed top-0 bottom-0 w-px bg-border pointer-events-none z-40" style={{ left: bounds.right }} />
         </>,
         document.body
       )}

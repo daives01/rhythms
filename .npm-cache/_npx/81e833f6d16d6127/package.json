@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "react-doctor": "^0.0.30"
+  },
+  "_npx": {
+    "packages": [
+      "react-doctor@latest"
+    ]
+  }
+}
